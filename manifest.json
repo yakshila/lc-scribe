@@ -3,7 +3,7 @@
   "name": "LC Scribe",
   "version": "0.1.0",
   "description": "力扣刷题助手:自动识别题目与提交、关键节点提醒、AI 笔记生成、复习调度,可扩展 Agent 与上传器。",
-  "minimum_chrome_version": "110",
+  "minimum_chrome_version": "111",
   "permissions": ["storage", "notifications", "alarms", "tabs", "scripting", "downloads"],
   "host_permissions": ["https://leetcode.cn/*"],
   "optional_host_permissions": ["http://*/*", "https://*/*"],
@@ -23,6 +23,13 @@
         "src/content/submission-watcher.js"
       ],
       "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://leetcode.cn/*"],
+      "include_globs": ["https://leetcode.cn/*/problems/*", "https://leetcode.cn/problems/*", "https://leetcode.cn/submissions/detail/*"],
+      "js": ["src/content/page-hook.js"],
+      "world": "MAIN",
+      "run_at": "document_start"
     }
   ],
   "action": {

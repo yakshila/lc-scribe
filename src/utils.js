@@ -4,7 +4,7 @@
 /** 从 leetcode.cn URL 提取题目 slug,匹配不到返回 null */
 export function parseProblemSlug(url = location && location.href) {
   if (!url) return null;
-  const m = String(url).match(/leetcode\.cn\/problems\/([^/?#]+)/);
+  const m = String(url).match(/\/problems\/([^/?#]+)/);
   return m ? decodeURIComponent(m[1]) : null;
 }
 

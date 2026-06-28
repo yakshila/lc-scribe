@@ -5,6 +5,8 @@
   if (window.__LCC_PAGE_HOOK__) return;
   window.__LCC_PAGE_HOOK__ = true;
 
+  console.log("[LCC:info][page-hook] page-hook loaded in MAIN world @", location.href);
+
   const SOURCE = "lcc-page-hook";
   function post(type, detail) {
     try {
@@ -132,6 +134,7 @@
     if (!data) return;
     // /submissions/detail/<id>/check/ 响应
     const status = decodeStatus(data.status_code, data.status_msg);
+    console.log("[LCC:info][page-hook] result check captured:", status, "code=", data.status_code);
     post("SUBMIT_RESULT", {
       status,
       statusMsg: data.status_msg,
