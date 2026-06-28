@@ -222,21 +222,59 @@
       }
     }
 
-    // 诊断:打印完整响应字段,帮助定位 runtime/memory 字段名差异
+    // LeetCode CN 字段名:runtime 用 status_runtime 或 display_runtime(字符串如 "40 ms"),
+    // memory 用 status_memory(字符串如 "6.2 MB")或 memory(字节数)。
+    // 兼容多种字段名,优先取数值型的。
+    const runtime = pickRuntime(data);
+    const memory = pickMemory(data);
+
+    // 诊断:打印完整响应字段,帮助定位字段名差异
     console.log("[LCC:info][page-hook] result check captured:", status, "code=", data.status_code,
       "| isRunCode=", isRunCode,
       "| fields=", Object.keys(data).join(","),
       "| compare_result=", data.compare_result,
-      "| runtime=", data.runtime, "run_time=", data.run_time,
-      "| memory=", data.memory);
+      "| runtime=", runtime, "memory=", memory);
 
     post("SUBMIT_RESULT", {
       status,
       statusMsg: data.status_msg,
-      runtime: data.runtime != null ? data.runtime : data.run_time,
-      memory: data.memory != null ? data.memory : data.memory_bytes,
+      runtime,
+      memory,
       submissionId: data.submission_id,
     });
+  }
+
+  // 从 check 响应里提取 runtime(毫秒,数值)
+  // LeetCode CN: status_runtime 是 "40 ms" 字符串,display_runtime 是 "40" 字符串,
+  // runtime/run_time 在部分接口存在(数值),统一取数值。
+  function pickRuntime(data) {
+    const candidates = [data.runtime, data.run_time, data.display_runtime, data.status_runtime];
+    for (const c of candidates) {
+      if (c == null) continue;
+      const n = typeof c === "number" ? c : parseInt(String(c).replace(/[^\d]/g, ""), 10);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+    return undefined;
+  }
+
+  // 从 check 响应里提取 memory(字节数,数值)
+  // LeetCode CN: status_memory 是 "6.2 MB" 字符串,memory 是字节数,统一转成字节。
+  function pickMemory(data) {
+    if (data.memory != null && typeof data.memory === "number") return data.memory;
+    if (data.memory_bytes != null && typeof data.memory_bytes === "number") return data.memory_bytes;
+    // 从 status_memory 字符串解析 "6.2 MB" / "4268 KB"
+    const sm = data.status_memory;
+    if (typeof sm === "string") {
+      const m = sm.match(/([\d.]+)\s*(KB|MB|GB)/i);
+      if (m) {
+        const v = parseFloat(m[1]);
+        const unit = m[2].toUpperCase();
+        if (unit === "KB") return Math.round(v * 1024);
+        if (unit === "MB") return Math.round(v * 1024 * 1024);
+        if (unit === "GB") return Math.round(v * 1024 * 1024 * 1024);
+      }
+    }
+    return undefined;
   }
 
   function maybePostFromGraphQL(url, text) {

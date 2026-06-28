@@ -25,9 +25,24 @@ export async function notify({ id, title, message, iconUrl, buttons, onClick, on
   return new Promise((resolve) => {
     chrome.notifications.create(notifId, opts, (createdId) => {
       if (chrome.runtime.lastError) {
-        logger.warn("notif", "create error:", chrome.runtime.lastError.message);
+        // icon 加载失败时,用内联 data URI 兜底(1x1 紫色 PNG),确保通知能弹出
+        const fallbackIcon =
+          "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPj/HwAEhwH/yfeMqgAAAABJRU5ErkJggg==";
+        if (/image|icon/i.test(chrome.runtime.lastError.message)) {
+          logger.warn("notif", "icon failed, retry with fallback:", chrome.runtime.lastError.message);
+          const retryOpts = { ...opts, iconUrl: fallbackIcon };
+          chrome.notifications.create(notifId, retryOpts, (id2) => {
+            if (chrome.runtime.lastError) {
+              logger.warn("notif", "create error (retry also failed):", chrome.runtime.lastError.message);
+            }
+            resolve(id2);
+          });
+        } else {
+          logger.warn("notif", "create error:", chrome.runtime.lastError.message);
+        }
+      } else {
+        resolve(createdId);
       }
-      resolve(createdId);
     });
   });
 }
