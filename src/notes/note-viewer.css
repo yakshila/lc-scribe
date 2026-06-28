@@ -71,8 +71,10 @@ input[type="search"]:focus { outline: none; border-color: var(--accent); }
 .detail ul, .detail ol { margin: 8px 0; padding-left: 22px; }
 .detail li { margin: 3px 0; }
 .detail code { background: var(--card-2); padding: 1px 6px; border-radius: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .9em; }
-.detail pre { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; overflow: auto; }
+.detail pre { background: #0d1117; border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; overflow: auto; }
 .detail pre code { background: none; padding: 0; }
+/* highlight.js 高亮块:让 hljs 主题接管背景与配色 */
+.detail pre code.hljs { background: transparent; padding: 0; }
 .detail blockquote { border-left: 3px solid var(--accent); margin: 12px 0; padding: 4px 14px; color: var(--muted); }
 .detail a { color: var(--blue); }
 .detail strong { color: #fff; }
