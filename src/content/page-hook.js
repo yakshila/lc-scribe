@@ -137,6 +137,13 @@
       // REST 提交端点 /problems/<slug>/submit/
       isSubmit = true;
       payload = parseBody(body);
+    } else if (u.includes("/problems/") && u.includes("/interpret_solution")) {
+      // 运行代码端点 /problems/<slug>/interpret_solution/
+      // 用户点"运行"而非"提交"时走这个,请求体里同样带 typedCode/lang,
+      // 必须拦截,否则运行结果永远拿不到代码。
+      isSubmit = true;
+      payload = parseBody(body);
+      console.log("[LCC:info][page-hook] interpret_solution (run code) detected, capturing code");
     } else if (u.includes("/submissions/") && u.includes("/submit")) {
       // 备用:/submissions/.../submit
       isSubmit = true;
@@ -149,14 +156,24 @@
     if (!payload) return;
 
     const vars = payload.variables || payload;
-    // 放宽字段名匹配,兼容 LeetCode CN 不同版本
-    const typedCode = vars.typedCode || vars.typed_code || vars.code ||
-      (vars.data && (vars.data.typedCode || vars.data.typed_code || vars.data.code)) || "";
-    const lang = vars.lang || vars.langSlug || vars.language ||
-      (vars.data && (vars.data.lang || vars.data.langSlug || vars.data.language)) || "";
-    const questionId = vars.questionId || vars.question_id ||
-      (vars.data && (vars.data.questionId || vars.data.question_id)) || "";
-    console.log("[LCC:info][page-hook] submit payload: typedCode.len=", typedCode.length, "lang=", lang, "questionId=", questionId);
+    // LeetCode CN 的 interpret_solution 有时把 code/lang 包在 data_json(JSON 字符串)里
+    let dataJson = null;
+    if (typeof vars.data_json === "string" && vars.data_json.trim().startsWith("{")) {
+      try { dataJson = JSON.parse(vars.data_json); } catch (_) {}
+    }
+    const src = [vars, dataJson, vars.data].filter(Boolean);
+    const pick = (keys) => {
+      for (const s of src) {
+        for (const k of keys) {
+          if (s[k] != null && s[k] !== "") return s[k];
+        }
+      }
+      return "";
+    };
+    const typedCode = pick(["typedCode", "typed_code", "code"]);
+    const lang = pick(["lang", "langSlug", "language"]);
+    const questionId = pick(["questionId", "question_id"]);
+    console.log("[LCC:info][page-hook] submit payload: typedCode.len=", typedCode.length, "lang=", lang, "questionId=", questionId, "dataJson=", !!dataJson);
     if (typedCode || lang) {
       post("SUBMIT_REQUEST", { typedCode, lang, questionId, url });
     } else {

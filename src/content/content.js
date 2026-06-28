@@ -38,20 +38,44 @@
   };
 
   // —— 向 background 发消息(基于 chrome.runtime.sendMessage) ——
+  // 检测 "Extension context invalidated"(插件被 reload 但页面没刷新),
+  // 提示用户刷新页面,避免所有提交结果静默丢失。
+  let contextInvalidated = false;
+  let invalidatedWarnedAt = 0;
   LCC.bg = function sendMessage(type, payload = {}) {
     return new Promise((resolve) => {
       try {
         chrome.runtime.sendMessage({ type, payload, from: "content", ts: Date.now() }, (resp) => {
           if (chrome.runtime.lastError) {
-            // 后台脚本可能未就绪,吞掉错误
-            LCC.utils.log("debug", "bg", "sendMessage error:", chrome.runtime.lastError.message);
+            const msg = chrome.runtime.lastError.message || "";
+            if (/context invalidated/i.test(msg)) {
+              contextInvalidated = true;
+              // 每 30 秒只警告一次,避免刷屏
+              const now = Date.now();
+              if (now - invalidatedWarnedAt > 30000) {
+                invalidatedWarnedAt = now;
+                console.error("[LCC:error][bg] ⚠️ 插件已被重新加载,但本页面仍使用旧 content script。请刷新 LeetCode 页面,否则提交结果无法记录!当前消息丢失:", type);
+              }
+            } else {
+              LCC.utils.log("debug", "bg", "sendMessage error:", msg);
+            }
             resolve(null);
           } else {
             resolve(resp);
           }
         });
       } catch (e) {
-        LCC.utils.log("warn", "bg", "sendMessage threw:", e);
+        const msg = String(e && e.message || e);
+        if (/context invalidated/i.test(msg)) {
+          contextInvalidated = true;
+          const now = Date.now();
+          if (now - invalidatedWarnedAt > 30000) {
+            invalidatedWarnedAt = now;
+            console.error("[LCC:error][bg] ⚠️ 插件已被重新加载,但本页面仍使用旧 content script。请刷新 LeetCode 页面,否则提交结果无法记录!");
+          }
+        } else {
+          LCC.utils.log("warn", "bg", "sendMessage threw:", e);
+        }
         resolve(null);
       }
     });
