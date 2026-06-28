@@ -132,6 +132,11 @@
 
   function postResultFromCheck(data) {
     if (!data) return;
+    // 轮询中间态:status_code 还没出来(题目仍在跑),跳过,不当作结果上报
+    if (data.status_code == null) {
+      console.log("[LCC:debug][page-hook] result check pending (no status_code yet), skip");
+      return;
+    }
     // /submissions/detail/<id>/check/ 响应
     const status = decodeStatus(data.status_code, data.status_msg);
     console.log("[LCC:info][page-hook] result check captured:", status, "code=", data.status_code);

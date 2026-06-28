@@ -78,10 +78,16 @@
     }
   };
 
-  // content_idle 时启动
-  if (document.readyState === "complete" || document.readyState === "interactive") {
-    LCC.start();
-  } else {
-    window.addEventListener("DOMContentLoaded", LCC.start);
+  // content_idle 时启动 —— 但必须延迟到所有同级 content script
+  // (problem-detector / timer-tracker / submission-watcher) 执行完毕,
+  // 否则 LCC.problemDetector 等尚未定义,detector 不会启动,currentSlug 永远为 null。
+  // 同级脚本在同一 task 内同步顺序执行,setTimeout(0) 会在它们全部跑完后触发。
+  function bootstrap() {
+    if (LCC.problemDetector && LCC.timerTracker && LCC.submissionWatcher) {
+      LCC.start();
+    } else {
+      setTimeout(bootstrap, 0);
+    }
   }
+  bootstrap();
 })();
