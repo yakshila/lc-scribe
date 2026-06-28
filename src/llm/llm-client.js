@@ -20,7 +20,7 @@ export async function chatComplete(llmSettings, messages, opts = {}) {
     model: llmSettings.model || "gpt-4o-mini",
     messages,
     temperature: llmSettings.temperature != null ? llmSettings.temperature : 0.3,
-    max_tokens: llmSettings.maxTokens || 1500,
+    max_tokens: llmSettings.maxTokens || 4000,
     stream: false,
   };
   if (opts.responseFormatJSON) {

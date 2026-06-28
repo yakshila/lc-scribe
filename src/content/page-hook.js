@@ -202,9 +202,34 @@
       console.log("[LCC:debug][page-hook] result check pending (no status_code yet), skip");
       return;
     }
+
+    // 判断是否为运行代码(interpret_solution):submissionId 以 runcode_ 开头
+    const isRunCode = data.submission_id && String(data.submission_id).startsWith("runcode_");
+
     // /submissions/detail/<id>/check/ 响应
-    const status = decodeStatus(data.status_code, data.status_msg);
-    console.log("[LCC:info][page-hook] result check captured:", status, "code=", data.status_code);
+    let status = decodeStatus(data.status_code, data.status_msg);
+
+    // 对运行代码(runcode),status_code=10 只表示"运行完成",不代表全部用例通过。
+    // 需要额外检查 compare_result 字段(逐用例 1=通过 0=失败)。
+    // 如果有任一用例失败,改为 "Wrong Answer (run)" 让用户知道。
+    if (isRunCode && data.status_code === 10) {
+      const compareResult = data.compare_result;
+      if (typeof compareResult === "string" && /0/.test(compareResult)) {
+        const total = compareResult.split(",").length;
+        const passed = compareResult.split(",").filter((x) => x.trim() === "1").length;
+        status = `Wrong Answer (run ${passed}/${total})`;
+        console.log("[LCC:warn][page-hook] runcode has failing cases:", compareResult, `-> ${status}`);
+      }
+    }
+
+    // 诊断:打印完整响应字段,帮助定位 runtime/memory 字段名差异
+    console.log("[LCC:info][page-hook] result check captured:", status, "code=", data.status_code,
+      "| isRunCode=", isRunCode,
+      "| fields=", Object.keys(data).join(","),
+      "| compare_result=", data.compare_result,
+      "| runtime=", data.runtime, "run_time=", data.run_time,
+      "| memory=", data.memory);
+
     post("SUBMIT_RESULT", {
       status,
       statusMsg: data.status_msg,
