@@ -92,18 +92,31 @@
   }
 
   // —— DOM 兜底:监听结果文本 ——
+  // 注意:不能用全文扫描找 "Accepted",因为题目页统计区本身就有 "Accepted: 1.2M" 字样,
+  // 会在页面加载时误触发。只用结果容器选择器 + 短文本匹配。
+  let lastDomReportTs = 0;
+  let lastDomReportStatus = null;
   function observeResultDOM() {
-    const ACCEPT_RE = /accepted|解答成功|通过/i;
-    const WA_RE = /wrong answer|解答失败|错误/i;
+    const STATUS_PATTERNS = [
+      { re: /accepted|解答成功/i, status: "Accepted" },
+      { re: /wrong\s*answer|解答失败|答案错误/i, status: "Wrong Answer" },
+      { re: /compile\s*error|编译错误|编译失败/i, status: "Compile Error" },
+      { re: /runtime\s*error|执行出错|运行错误/i, status: "Runtime Error" },
+      { re: /time\s*limit|超时/i, status: "Time Limit Exceeded" },
+      { re: /memory\s*limit|内存超限/i, status: "Memory Limit Exceeded" },
+    ];
     const mo = new MutationObserver(() => {
-      // 多种可能的选择器(leetcode.cn 不同版本)
+      // 只看结果容器内的文本(避免命中题目统计区的 "Accepted: 1.2M")
       const sels = [
         "[data-e2e='submission-result']",
+        "[data-e2e='run-code-result']",
         ".success__3Ai7g",
         ".error__2ixPJ",
         ".result-container",
         ".submission-wrapper",
         "#result",
+        "[class*='submission-result']",
+        "[class*='run-result']",
       ];
       let node = null;
       for (const s of sels) {
@@ -114,16 +127,21 @@
         }
       }
       if (!node) return;
-      const text = node.textContent || "";
-      if (ACCEPT_RE.test(text)) {
-        reportResult({ status: "Accepted", statusMsg: "Accepted (dom)", fromDOM: true });
-      } else if (WA_RE.test(text)) {
-        // 解析可能的细节(runtime/memory 通常 DOM 不全,留给 page-hook 补充)
-        reportResult({ status: "Wrong Answer", statusMsg: text.slice(0, 120), fromDOM: true });
+      const text = (node.textContent || "").slice(0, 300);
+      for (const p of STATUS_PATTERNS) {
+        if (p.re.test(text)) {
+          // 去重:同状态 3 秒内不重复报
+          const now = Date.now();
+          if (p.status === lastDomReportStatus && now - lastDomReportTs < 3000) return;
+          lastDomReportStatus = p.status;
+          lastDomReportTs = now;
+          LCC.utils.log("info", "submit", "DOM observer detected:", p.status, "| text=", text.slice(0, 80));
+          reportResult({ status: p.status, statusMsg: p.status + " (dom)", fromDOM: true });
+          return;
+        }
       }
     });
     mo.observe(document.body, { childList: true, subtree: true, characterData: true });
-    // 5 分钟后停止观察(避免长期开销)
-    setTimeout(() => mo.disconnect(), 5 * 60 * 1000);
+    setTimeout(() => mo.disconnect(), 10 * 60 * 1000);
   }
 })();

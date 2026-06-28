@@ -37,15 +37,22 @@
   const _fetch = window.fetch;
   window.fetch = function (input, init) {
     let url = "";
+    let method = "GET";
     let reqBody = null;
     try {
       url = typeof input === "string" ? input : input && input.url ? input.url : "";
+      method = (init && init.method) || (input && input.method) || "GET";
       if (init && init.body) reqBody = init.body;
     } catch (_) {}
 
-    // 诊断:打印所有包含 submit 的 URL,定位 LeetCode CN 提交接口
-    if (url && /submit/i.test(url)) {
-      console.log("[LCC:info][page-hook] fetch URL contains 'submit':", url, "hasBody=", !!reqBody);
+    // catch-all:打印所有 POST 请求(非 GET),帮助定位真正的提交端点
+    if (method !== "GET" && method !== "HEAD" && url) {
+      const u = url.toLowerCase();
+      // 排除明显的非提交 POST(数据分析、埋点等),减少噪音
+      const isNoise = u.includes("/graphql") === false && (u.includes("/event") || u.includes("/track") || u.includes("/log") || u.includes("/monitor"));
+      if (!isNoise) {
+        console.log("[LCC:info][page-hook] POST", method, url, "hasBody=", !!reqBody);
+      }
     }
 
     const p = _fetch.apply(this, arguments);
@@ -79,6 +86,17 @@
     return _open.apply(this, arguments);
   };
   XMLHttpRequest.prototype.send = function (body) {
+    // catch-all:打印所有 POST XHR,帮助定位真正的提交端点
+    try {
+      const m = (this.__lcc_method || "").toUpperCase();
+      const u = (this.__lcc_url || "").toLowerCase();
+      if (m !== "GET" && m !== "HEAD" && u) {
+        const isNoise = u.includes("/graphql") === false && (u.includes("/event") || u.includes("/track") || u.includes("/log") || u.includes("/monitor"));
+        if (!isNoise) {
+          console.log("[LCC:info][page-hook] XHR POST", m, u, "hasBody=", !!body);
+        }
+      }
+    } catch (_) {}
     maybeCaptureSubmitRequest(this.__lcc_url, body);
     this.addEventListener("load", () => {
       try {
@@ -102,10 +120,13 @@
 
     if (u.includes("/graphql")) {
       payload = parseBody(body);
-      const op = payload && (payload.operationName || (payload.query && /mutation\s+\w*submit/i.test(payload.query)));
-      // 放宽匹配:任何 query/mutation 含 submit 字样都视为提交
-      if (payload && (op === "submit" || op === "submitSolution" || op === "submission" ||
-          (payload.query && /submitSolution|submit|submission/i.test(payload.query)))) {
+      const op = payload && payload.operationName;
+      // 收紧匹配:只认真正的提交操作(operationName 严格匹配 submit / submitSolution),
+      // 或 mutation 中显式声明 submitSolution。
+      // 排除 submissionAnalysisAvailable / submissionList 这类查询(它们只是只读查询)。
+      if (op === "submit" || op === "submitSolution" ||
+          (payload.query && /mutation\s+submitSolution\s*[\(\{]/i.test(payload.query)) ||
+          (payload.query && /mutation\s+submit\s*[\(\{]/i.test(payload.query))) {
         isSubmit = true;
       }
       // 诊断:打印所有 GraphQL operationName
@@ -113,6 +134,11 @@
         console.log("[LCC:debug][page-hook] graphql op:", payload.operationName);
       }
     } else if (u.includes("/problems/") && u.includes("/submit")) {
+      // REST 提交端点 /problems/<slug>/submit/
+      isSubmit = true;
+      payload = parseBody(body);
+    } else if (u.includes("/submissions/") && u.includes("/submit")) {
+      // 备用:/submissions/.../submit
       isSubmit = true;
       payload = parseBody(body);
     }
