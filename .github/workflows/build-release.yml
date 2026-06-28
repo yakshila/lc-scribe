@@ -1,0 +1,78 @@
+name: Build & Release
+
+# 合并(或直接推送)到 main 时触发:打包扩展并发布到 Release
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write # 创建 tag / release 需要
+
+concurrency:
+  group: build-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read manifest version
+        id: ver
+        run: |
+          VERSION=$(node -p "require('./manifest.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build tag
+        id: tag
+        run: |
+          TAG="v${{ steps.ver.outputs.version }}-${{ github.run_number }}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Building release: $TAG (commit ${{ github.sha }})"
+
+      - name: Package extension
+        run: |
+          set -euo pipefail
+          ARTIFACT="lc-scribe-${{ steps.tag.outputs.tag }}.zip"
+          # 只打包运行扩展所需的文件,排除开发/测试/CI 文件
+          zip -r "$ARTIFACT" \
+            manifest.json \
+            icons \
+            src \
+            -x "*.DS_Store" "*/node_modules/*"
+          mkdir -p artifact
+          mv "$ARTIFACT" artifact/
+          echo "## Packaged" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Artifact: \`$ARTIFACT\` ($(du -h "artifact/$ARTIFACT" | cut -f1))" >> "$GITHUB_STEP_SUMMARY"
+          ls -la artifact/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: LC Scribe ${{ steps.tag.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          body: |
+            ## LC Scribe ${{ steps.tag.outputs.tag }}
+
+            自动构建,基于 main 分支 commit `${{ github.sha }}`。
+
+            ### 安装(Chrome / Edge MV3)
+            1. 下载下方 `lc-scribe-*.zip` 并解压
+            2. 打开 `chrome://extensions`
+            3. 右上角开启 **开发者模式**
+            4. 点击 **加载已解压的扩展程序**,选择解压出来的目录
+            5. 打开 [leetcode.cn](https://leetcode.cn) 开始刷题,首次会弹出设置页配置模型
+
+            ### 首次使用
+            - 设置页填入 OpenAI 兼容模型(Base URL / API Key / Model)
+            - 点「授权域名」→「测试连接」
+            - (可选)配置飞书 Webhook / Markdown 自动导出
+
+            > 完整说明见仓库源码注释。
+          files: artifact/*.zip
+          make_latest: true
+          fail_on_unmatched_files: true
