@@ -16,7 +16,7 @@
   LCC.utils = {
     parseProblemSlug(url) {
       if (!url) return null;
-      const m = String(url).match(/leetcode\.cn\/problems\/([^/?#]+)/);
+      const m = String(url).match(/\/problems\/([^/?#]+)/);
       return m ? decodeURIComponent(m[1]) : null;
     },
     problemKey(slug) {

@@ -15,7 +15,11 @@
   function reportResult({ status, statusMsg, runtime, memory, code, lang, langSlug, submissionId }) {
     const slug = LCC.state.currentSlug;
     const problemKey = LCC.state.currentProblemKey;
-    if (!slug || !problemKey) return;
+    if (!slug || !problemKey) {
+      LCC.utils.log("warn", "submit", "reportResult bailed: slug not set (detector 未识别题目). url=", location.href, "slug=", slug);
+      return;
+    }
+    LCC.utils.log("info", "submit", "reportResult:", status, "| slug=", slug, "| accepted=", /accepted|解答成功|通过/i.test(status + " " + (statusMsg || "")));
     const key = `${problemKey}:${submissionId || ""}:${status}:${Date.now().toString().slice(0, -3)}`;
     // 同秒内同状态去重
     if (lastReportedKey && lastReportedKey.startsWith(`${problemKey}:${submissionId || ""}:${status}:`)) {
@@ -64,13 +68,15 @@
       });
     },
     start() {
-      injectPageHook();
+      // page-hook 现由 manifest 以 world:MAIN + document_start 注入,无需手动注入
+      LCC.utils.log("info", "submit", "submission-watcher started (page-hook via manifest world:MAIN)");
       observeResultDOM();
     },
   };
 
-  // —— 注入 page context 钩子 ——
+  // —— 注入 page context 钩子(已废弃,改由 manifest world:MAIN 注入;保留为兜底) ——
   function injectPageHook() {
+    if (window.__LCC_PAGE_HOOK__) return; // manifest 已注入
     try {
       const url = chrome.runtime.getURL("src/content/page-hook.js");
       const s = document.createElement("script");
@@ -78,7 +84,7 @@
       s.async = false;
       s.onload = () => s.remove();
       (document.head || document.documentElement).appendChild(s);
-      LCC.utils.log("info", "submit", "page-hook injected");
+      LCC.utils.log("info", "submit", "page-hook injected (fallback script-tag)");
     } catch (e) {
       LCC.utils.log("error", "submit", "inject page-hook failed", e);
     }
