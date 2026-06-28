@@ -138,7 +138,7 @@ async function onAccepted(problemKey, session) {
   });
 
   if (settings.notifications.onAccepted) {
-    await notify({
+    const result = await notify({
       id: `lcc-accept-${problemKey}-${Date.now()}`,
       title: "Accepted!",
       message: `${session.slug} · 用时 ${formatDuration(session.durationSec)} · ${session.attempts.length} 次提交`,
@@ -152,6 +152,15 @@ async function onAccepted(problemKey, session) {
         }
       },
     });
+    // 系统通知失败时,在 LeetCode 页面内弹 toast 兜底,确保用户能看到 AC 提示
+    if (!result || !result.ok) {
+      sendToastToActiveTab({
+        title: "Accepted!",
+        message: `${session.slug} · 用时 ${formatDuration(session.durationSec)} · ${session.attempts.length} 次提交`,
+        type: "success",
+        duration: 8000,
+      });
+    }
   }
   if (settings.notes.autoGenerate) {
     await generateNoteFor(problemKey);
@@ -370,6 +379,24 @@ async function onStuck(problemKey) {
       }
     },
   });
+}
+
+// 向当前激活的 LeetCode 标签页发送 toast 消息(系统通知失败时兜底)
+async function sendToastToActiveTab(payload) {
+  try {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const tab = tabs && tabs[0];
+    if (tab && tab.url && /leetcode\.cn/.test(tab.url)) {
+      chrome.tabs.sendMessage(tab.id, { type: "SHOW_TOAST", payload }, () => {
+        if (chrome.runtime.lastError) {
+          // content script 没注入或已失效,忽略
+          logger.warn("coord", "toast send failed:", chrome.runtime.lastError.message);
+        }
+      });
+    }
+  } catch (e) {
+    logger.warn("coord", "sendToastToActiveTab error:", e);
+  }
 }
 
 // ============ 消息路由 ============

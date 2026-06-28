@@ -227,6 +227,13 @@
     // 兼容多种字段名,优先取数值型的。
     const runtime = pickRuntime(data);
     const memory = pickMemory(data);
+    // 诊断:打印所有 runtime/memory 相关字段的原值,便于定位取不到的原因
+    console.log("[LCC:debug][page-hook] perf raw: status_runtime=", JSON.stringify(data.status_runtime),
+      "display_runtime=", JSON.stringify(data.display_runtime),
+      "runtime=", JSON.stringify(data.runtime),
+      "status_memory=", JSON.stringify(data.status_memory),
+      "memory=", JSON.stringify(data.memory),
+      "-> picked runtime=", runtime, "memory=", memory);
 
     // 诊断:打印完整响应字段,帮助定位字段名差异
     console.log("[LCC:info][page-hook] result check captured:", status, "code=", data.status_code,
@@ -250,9 +257,9 @@
   function pickRuntime(data) {
     const candidates = [data.runtime, data.run_time, data.display_runtime, data.status_runtime];
     for (const c of candidates) {
-      if (c == null) continue;
+      if (c == null || c === "") continue;
       const n = typeof c === "number" ? c : parseInt(String(c).replace(/[^\d]/g, ""), 10);
-      if (Number.isFinite(n) && n > 0) return n;
+      if (Number.isFinite(n) && n >= 0) return n;
     }
     return undefined;
   }

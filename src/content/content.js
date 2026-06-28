@@ -110,9 +110,54 @@
           return true; // 异步响应
         }
         sendResponse({ ok: false, error: "no slug or leetcodeApi" });
+      } else if (msg.type === "SHOW_TOAST") {
+        // background 通知系统失败时的兜底:在 LeetCode 页面内弹 toast
+        showToast(msg.payload || {});
+        sendResponse({ ok: true });
       }
     });
   };
+
+  // —— 页面内 toast(系统通知失败时的兜底,确保用户能看到 AC 等关键提示) ——
+  function showToast({ title, message, type = "info", duration = 6000 }) {
+    try {
+      const colors = {
+        success: { bg: "#1a3a2a", border: "#5CC863", icon: "✓" },
+        info:    { bg: "#1a2a3a", border: "#4A90D9", icon: "i" },
+        warn:    { bg: "#3a2a1a", border: "#FF9F43", icon: "!" },
+      };
+      const c = colors[type] || colors.info;
+      const el = document.createElement("div");
+      el.id = "lcc-toast-" + Date.now();
+      el.style.cssText = [
+        "position:fixed", "top:20px", "right:20px", "z-index:2147483647",
+        "background:" + c.bg, "border:1px solid " + c.border, "border-radius:8px",
+        "padding:12px 16px", "max-width:360px", "box-shadow:0 4px 20px rgba(0,0,0,0.4)",
+        "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
+        "color:#e8e8e8", "font-size:14px", "line-height:1.5",
+        "display:flex", "gap:10px", "align-items:flex-start",
+        "transition:opacity .3s, transform .3s", "opacity:0", "transform:translateX(20px)",
+      ].join(";") + ";";
+      el.innerHTML = '<div style="color:' + c.border + ';font-weight:bold;font-size:16px;flex-shrink:0">' + c.icon + '</div>'
+        + '<div><div style="font-weight:600;margin-bottom:2px">' + escapeHtml(title || "LC Scribe") + '</div>'
+        + (message ? '<div style="opacity:.85;font-size:13px">' + escapeHtml(message) + '</div>' : '') + '</div>';
+      document.documentElement.appendChild(el);
+      requestAnimationFrame(() => {
+        el.style.opacity = "1";
+        el.style.transform = "translateX(0)";
+      });
+      setTimeout(() => {
+        el.style.opacity = "0";
+        el.style.transform = "translateX(20px)";
+        setTimeout(() => { try { el.remove(); } catch (_) {} }, 300);
+      }, duration);
+    } catch (e) {
+      LCC.utils.log("warn", "content", "showToast failed", e);
+    }
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+  }
 
   // —— 来自 page context 的消息(主要是 fetch 拦截结果) ——
   LCC.onPageMessage = function (event) {
