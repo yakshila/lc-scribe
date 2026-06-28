@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>LC Scribe · 诊断</title>
+  <style>
+    body { font: 14px/1.6 -apple-system, "PingFang SC", sans-serif; margin: 0; padding: 24px; background: #0f1115; color: #e6e8ee; }
+    h1 { font-size: 18px; margin: 0 0 4px; }
+    .sub { color: #8b93a7; margin: 0 0 20px; font-size: 13px; }
+    .block { background: #181b22; border: 1px solid #2a2f3a; border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+    .block h2 { font-size: 14px; margin: 0 0 10px; color: #ffa116; }
+    .row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #2a2f3a; }
+    .row:last-child { border: none; }
+    .k { color: #8b93a7; }
+    .v { font-family: ui-monospace, monospace; }
+    .ok { color: #00b8a3; }
+    .bad { color: #ff375f; }
+    .warn { color: #ffa116; }
+    button { background: #1f232c; color: #e6e8ee; border: 1px solid #2a2f3a; border-radius: 8px; padding: 8px 14px; cursor: pointer; font: inherit; }
+    button:hover { background: #2a2f3a; }
+    .hint { color: #8b93a7; font-size: 12px; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <h1>LC Scribe 诊断页</h1>
+  <p class="sub">这个页面运行在扩展自己的环境里,不受 leetcode 页面脚本干扰,用来确认后台链路是否正常。</p>
+
+  <div class="block">
+    <h2>后台状态</h2>
+    <div class="row"><span class="k">Service Worker</span><span class="v ok" id="sw">检测中…</span></div>
+    <div class="row"><span class="k">已 AC 总数</span><span class="v" id="statAc">—</span></div>
+    <div class="row"><span class="k">笔记数</span><span class="v" id="statNotes">—</span></div>
+    <div class="row"><span class="k">待复习数</span><span class="v" id="statDue">—</span></div>
+    <div class="row"><span class="k">LLM 已配置</span><span class="v" id="statLLM">—</span></div>
+    <div class="row"><span class="k">当前活跃会话</span><span class="v" id="statActive">—</span></div>
+  </div>
+
+  <div class="block">
+    <h2>已记录的会话(sessions)</h2>
+    <div id="sessions">检测中…</div>
+  </div>
+
+  <div class="block">
+    <h2>操作</h2>
+    <button id="btnRefresh">刷新状态</button>
+    <button id="btnTriggerReview">触发复习检查</button>
+    <p class="hint">如果"当前活跃会话"有内容,说明 content script 的确在跑并把数据传到后台了。</p>
+  </div>
+
+  <script type="module" src="diagnose.js"></script>
+</body>
+</html>
