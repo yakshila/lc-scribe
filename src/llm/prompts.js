@@ -15,6 +15,15 @@ export function buildNoteGenerationPrompt(ctx) {
     `标签: ${(note.meta.tags || []).join(", ")}`,
   ].join("\n");
 
+  // 题目正文:优先用 problem.content(GQL 拉到的 HTML),清洗掉标签后给 AI
+  let problemStatement = "";
+  if (problem && problem.content) {
+    problemStatement = stripHtml(problem.content).slice(0, 3000);
+  }
+  const hints = (problem && problem.hints && problem.hints.length)
+    ? problem.hints.map((h) => "  - " + stripHtml(h).slice(0, 200)).join("\n")
+    : "";
+
   const solvingDesc = [
     `用时: ${note.solving.durationSec} 秒`,
     `提交次数: ${note.solving.attemptCount}`,
@@ -22,8 +31,18 @@ export function buildNoteGenerationPrompt(ctx) {
     `使用语言: ${(note.solving.languagesUsed || []).join(", ")}`,
   ].join("\n");
 
+  // AC 那次提交的 runtime / memory(从 session.attempts 找)
+  const acceptedAttempt = (session && session.attempts || []).slice().reverse().find((a) => /accepted/i.test(a.status));
+  const perfDesc = acceptedAttempt
+    ? `执行: runtime=${acceptedAttempt.runtime ?? "?"} ms, memory=${acceptedAttempt.memory ?? "?"} bytes`
+    : "(无执行数据)";
+
+  // 失败尝试:带代码片段(截断),让 AI 能推断踩坑点
   const failedSummary = (failedAttempts && failedAttempts.length)
-    ? failedAttempts.slice(0, 5).map((a, i) => `  ${i + 1}. [${a.status}] ${a.statusMsg || ""}`.trim()).join("\n")
+    ? failedAttempts.slice(0, 3).map((a, i) => {
+        const codeSnippet = (a.code || "").slice(0, 600);
+        return `  ${i + 1}. [${a.status}] ${a.statusMsg || ""}` + (codeSnippet ? `\n     代码片段:\n     ${codeSnippet}` : "");
+      }).join("\n")
     : "无";
 
   const code = note.code.solution || "(未拿到代码)";
@@ -55,10 +74,15 @@ export function buildNoteGenerationPrompt(ctx) {
 【题目】
 ${problemDesc}
 
+【题目正文】
+${problemStatement || "(未拿到题目正文)"}
+${hints ? "\n【官方提示】\n" + hints : ""}
+
 【做题过程】
 ${solvingDesc}
+${perfDesc}
 
-【失败尝试摘要】
+【失败尝试】
 ${failedSummary}
 
 【AC 代码】(${codeLang})
@@ -69,6 +93,21 @@ ${code}
 请输出 JSON。`;
 
   return { system, user };
+}
+
+// 粗略去 HTML 标签,保留文本和换行(题目正文是 HTML)
+function stripHtml(html) {
+  return String(html || "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<\/li>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 // —— 代码分析:针对 AC 代码,标注关键行 + 给出可读性/复杂度点评 ——

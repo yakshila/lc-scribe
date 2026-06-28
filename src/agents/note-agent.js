@@ -17,10 +17,19 @@ export class NoteAgent {
       return { skipped: true, reason: "llm-disabled" };
     }
     const { system, user } = buildNoteGenerationPrompt(ctx);
+
+    // 打印完整请求,便于调试"提交给 AI 的数据是否齐全"
+    logger.info("note-agent", "=== LLM 请求开始 ===");
+    logger.info("note-agent", "system prompt:\n" + system);
+    logger.info("note-agent", "user prompt:\n" + user);
+    logger.info("note-agent", "模型: " + (settings.llm.model || "?") + " | baseURL: " + (settings.llm.baseURL || "?"));
+
     const text = await chatComplete(settings.llm, [
       { role: "system", content: system },
       { role: "user", content: user },
     ], { responseFormatJSON: true });
+
+    logger.info("note-agent", "=== LLM 响应 ===\n" + (text || "(空)"));
 
     const parsed = parseNoteGenerationResult(text);
     if (!parsed) {
