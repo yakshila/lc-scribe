@@ -13,7 +13,8 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://leetcode.cn/problems/*", "https://leetcode.cn/submissions/detail/*"],
+      "matches": ["https://leetcode.cn/*"],
+      "include_globs": ["https://leetcode.cn/*/problems/*", "https://leetcode.cn/problems/*", "https://leetcode.cn/submissions/detail/*"],
       "js": [
         "src/content/content.js",
         "src/content/leetcode-api.js",
@@ -48,6 +49,10 @@
     {
       "resources": ["src/content/page-hook.js"],
       "matches": ["https://leetcode.cn/*"]
+    },
+    {
+      "resources": ["src/diagnose/diagnose.html"],
+      "matches": ["<all_urls>"]
     }
   ]
 }
