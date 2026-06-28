@@ -26,9 +26,10 @@ export const NOTE_FIELDS = {
     startedAt: "ISO 进入题目时刻",
     acceptedAt: "ISO 首次 AC 时刻(null 表示未 AC)",
     durationSec: "number 从开始到 AC 的秒数",
-    attemptCount: "number 提交次数",
+    attemptCount: "number 提交次数(不含运行)",
     firstAccepted: "boolean 是否一次 AC",
     languagesUsed: "string[] 用过的语言",
+    timeline: "{kind:'run'|'submit', status, statusMsg, runtime, memory, lang, submissionId, ts, code?, url?}[] 完整做题轨迹(运行+提交)",
   },
   approach: {
     intuition: "string 题目直觉/第一想法",
@@ -108,6 +109,21 @@ export function noteToMarkdown(note) {
   L.push(`- 用时: ${fmtDur(s.durationSec)} · 提交次数: ${s.attemptCount} · 一次 AC: ${s.firstAccepted ? "是" : "否"}`);
   L.push(`- 语言: ${(s.languagesUsed || []).join(", ") || "—"}`);
   L.push("");
+
+  // 完整做题轨迹(运行 + 提交),体现试错过程
+  if (s.timeline && s.timeline.length) {
+    L.push("## 做题轨迹");
+    L.push("| # | 类型 | 结果 | runtime | memory | 语言 | 时间 |");
+    L.push("|---|------|------|---------|--------|------|------|");
+    s.timeline.forEach((a, i) => {
+      const kindLabel = a.kind === "run" ? "运行" : "提交";
+      const rt = a.runtime != null ? `${a.runtime}ms` : "—";
+      const mem = a.memory != null ? `${a.memory}B` : "—";
+      const t = a.ts ? new Date(a.ts).toLocaleString("zh-CN", { hour12: false }) : "—";
+      L.push(`| ${i + 1} | ${kindLabel} | ${a.status} | ${rt} | ${mem} | ${a.lang || "—"} | ${t} |`);
+    });
+    L.push("");
+  }
 
   L.push("## 思路");
   if (a.intuition) L.push(`**直觉**: ${a.intuition}`, "");

@@ -211,6 +211,9 @@ export function newNoteSkeleton(problem) {
       attemptCount: 0,
       firstAccepted: false,
       languagesUsed: [],
+      // 完整做题轨迹:每一次运行/提交的快照,供 AI 分析踩坑点、用户回顾试错过程。
+      // 元素结构: { kind: "run"|"submit", status, statusMsg, runtime, memory, lang, submissionId, ts, code?, url? }
+      timeline: [],
     },
     approach: {
       intuition: "",

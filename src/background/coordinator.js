@@ -78,7 +78,7 @@ async function onProblemMeta(payload) {
 }
 
 async function onSubmissionResult(payload, sender) {
-  const { problemKey, slug, status, statusMsg, runtime, memory, code, lang, accepted, submissionId } = payload;
+  const { problemKey, slug, status, statusMsg, runtime, memory, code, lang, accepted, submissionId, kind, url } = payload;
   if (!problemKey) return { ok: false, error: "no problemKey" };
 
   let session = await getSession(problemKey);
@@ -86,18 +86,31 @@ async function onSubmissionResult(payload, sender) {
     session = { problemKey, slug, url: payload.url || null, startedAt: nowISO(), attempts: [], accepted: false, languagesUsed: [] };
   }
   session.attempts = session.attempts || [];
-  const attempt = { status, statusMsg, runtime, memory, lang, submissionId, ts: nowISO() };
+
+  // 区分运行(run)和提交(submit),两种都记入 session,形成完整做题轨迹。
+  // run: 点"运行" -> interpret_solution,通常没 submissionId(用 runcode_xxx)
+  // submit: 点"提交" -> /submit/,有正式 submissionId
+  const isRun = kind === "run" || (submissionId && String(submissionId).startsWith("runcode_"));
+  const attempt = {
+    kind: isRun ? "run" : "submit",
+    status, statusMsg,
+    runtime, memory, lang,
+    submissionId, ts: nowISO(),
+  };
   if (code) attempt.code = code;
+  if (url) attempt.url = url;
   session.attempts.push(attempt);
 
   session.languagesUsed = session.languagesUsed || [];
   if (lang && !session.languagesUsed.includes(lang)) session.languagesUsed.push(lang);
 
   let becameAccepted = false;
-  if (accepted && !session.accepted) {
+  // 只有 submit 且 accepted 才算真正 AC(runs 不算)
+  if (accepted && !isRun && !session.accepted) {
     session.accepted = true;
     session.acceptedAt = nowISO();
-    session.firstAccepted = session.attempts.length === 1;
+    // firstAccepted: 提交(非 run)里第一次 AC
+    session.firstAccepted = session.attempts.filter((a) => a.kind !== "run").length === 1;
     becameAccepted = true;
     if (session.startedAt) {
       session.durationSec = Math.max(0, Math.floor((Date.now() - new Date(session.startedAt).getTime()) / 1000));
@@ -106,7 +119,7 @@ async function onSubmissionResult(payload, sender) {
     sendToProblemTab(problemKey, { type: "TIMER_STOP" });
   }
   await saveSession(problemKey, session);
-  logger.info("coord", `submission: ${slug} -> ${status}${becameAccepted ? " (NEW AC)" : ""}`);
+  logger.info("coord", `${isRun ? "run" : "submission"}: ${slug} -> ${status}${becameAccepted ? " (NEW AC)" : ""} | attempts=${session.attempts.length}`);
 
   if (becameAccepted) {
     logger.info("coord", `AC detected for ${problemKey}, triggering onAccepted`);
@@ -208,20 +221,36 @@ export async function generateNoteFor(problemKey) {
   note.solving.startedAt = session.startedAt;
   note.solving.acceptedAt = session.acceptedAt;
   note.solving.durationSec = session.durationSec || 0;
-  note.solving.attemptCount = (session.attempts || []).length;
   note.solving.firstAccepted = !!session.firstAccepted;
   note.solving.languagesUsed = session.languagesUsed || [];
 
-  const acceptedAttempt = [...(session.attempts || [])].reverse().find((a) => /accepted/i.test(a.status));
-  logger.info("coord", `acceptedAttempt found: ${!!acceptedAttempt}` + (acceptedAttempt ? ` | lang=${acceptedAttempt.lang || "(empty)"} | codeLen=${(acceptedAttempt.code || "").length} | runtime=${acceptedAttempt.runtime ?? "?"}` : ` | attempts statuses=${(session.attempts || []).map(a => a.status).join(",")}`));
+  // 完整做题轨迹:把 session.attempts 整理成 timeline(runs + submits 全部)
+  const allAttempts = session.attempts || [];
+  note.solving.timeline = allAttempts.map((a) => ({
+    kind: a.kind || (a.submissionId && String(a.submissionId).startsWith("runcode_") ? "run" : "submit"),
+    status: a.status,
+    statusMsg: a.statusMsg,
+    runtime: a.runtime,
+    memory: a.memory,
+    lang: a.lang,
+    submissionId: a.submissionId,
+    ts: a.ts,
+    code: a.code || "",
+    url: a.url,
+  }));
+  // attemptCount:只数 submit(运行不算正式提交)
+  note.solving.attemptCount = allAttempts.filter((a) => (a.kind || "submit") === "submit").length;
+
+  const acceptedAttempt = [...allAttempts].reverse().find((a) => (a.kind || "submit") === "submit" && /accepted/i.test(a.status));
+  logger.info("coord", `acceptedAttempt found: ${!!acceptedAttempt}` + (acceptedAttempt ? ` | lang=${acceptedAttempt.lang || "(empty)"} | codeLen=${(acceptedAttempt.code || "").length} | runtime=${acceptedAttempt.runtime ?? "?"}` : ` | attempts statuses=${allAttempts.map(a => `${a.kind || "submit"}:${a.status}`).join(",")}`) + ` | timeline=${note.solving.timeline.length} (runs=${allAttempts.filter(a=>(a.kind||"submit")==="run").length}, submits=${note.solving.attemptCount})`);
   if (acceptedAttempt) {
     note.code.language = acceptedAttempt.lang || "";
     note.code.solution = acceptedAttempt.code || "";
   }
-  // 把失败尝试摘要给 agent 参考
-  const failedAttempts = (session.attempts || []).filter((a) => !/accepted/i.test(a.status));
+  // 把失败尝试摘要给 agent 参考(运行和提交都算,体现完整试错过程)
+  const failedAttempts = allAttempts.filter((a) => !/accepted/i.test(a.status));
 
-  const ctx = { note, session, problem: problemMeta, settings, failedAttempts };
+  const ctx = { note, session, problem: problemMeta, settings, failedAttempts, timeline: note.solving.timeline };
 
   const registry = getAgentRegistry();
   const enabled = settings.agents.enabled || [];

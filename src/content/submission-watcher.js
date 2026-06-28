@@ -12,7 +12,7 @@
   // 已上报的 submission 结果去重(同一次提交 result 响应 + DOM 可能都触发)
   let lastReportedKey = null;
 
-  function reportResult({ status, statusMsg, runtime, memory, code, lang, langSlug, submissionId, fromDOM }) {
+  function reportResult({ status, statusMsg, runtime, memory, code, lang, langSlug, submissionId, fromDOM, kind, url }) {
     const slug = LCC.state.currentSlug;
     const problemKey = LCC.state.currentProblemKey;
     if (!slug || !problemKey) {
@@ -22,7 +22,9 @@
     // 合并 pendingSubmit 中的 code/lang(如果当前 report 缺失)
     const mergedCode = code || (pendingSubmit && pendingSubmit.code) || "";
     const mergedLang = lang || langSlug || (pendingSubmit && pendingSubmit.lang) || "";
-    LCC.utils.log("info", "submit", "reportResult:", status, "| slug=", slug, "| fromDOM=", !!fromDOM, "| hasCode=", !!mergedCode, "| hasLang=", !!mergedLang, "| pendingSubmit=", !!pendingSubmit, "| accepted=", /accepted|解答成功|通过/i.test(status + " " + (statusMsg || "")));
+    // 推断 kind:URL 含 interpret_solution 是 run,否则 submit
+    const finalKind = kind || (url && /interpret_solution/i.test(url) ? "run" : (submissionId && String(submissionId).startsWith("runcode_") ? "run" : "submit"));
+    LCC.utils.log("info", "submit", "reportResult:", status, "| slug=", slug, "| kind=", finalKind, "| fromDOM=", !!fromDOM, "| hasCode=", !!mergedCode, "| hasLang=", !!mergedLang, "| pendingSubmit=", !!pendingSubmit, "| accepted=", /accepted|解答成功|通过/i.test(status + " " + (statusMsg || "")));
 
     const isAccepted = /accepted|解答成功|通过/i.test(status + " " + (statusMsg || ""));
     LCC.bg("SUBMISSION_RESULT", {
@@ -36,6 +38,8 @@
       lang: mergedLang,
       submissionId: submissionId || null,
       accepted: isAccepted,
+      kind: finalKind,
+      url: url || location.href,
       ts: Date.now(),
     });
     // 只在拿到完整数据(page-hook 路径,有 submissionId 或 runtime)时才清 pendingSubmit,
@@ -53,9 +57,11 @@
         code: detail.typedCode || detail.code || "",
         lang: detail.lang || detail.langSlug || "",
         questionId: detail.questionId || null,
+        url: detail.url || "",
+        kind: detail.url && /interpret_solution/i.test(detail.url) ? "run" : "submit",
         ts: Date.now(),
       };
-      LCC.utils.log("info", "submit", "submit request captured, lang=", pendingSubmit.lang, "codeLen=", pendingSubmit.code.length);
+      LCC.utils.log("info", "submit", `${pendingSubmit.kind} request captured, lang=`, pendingSubmit.lang, "codeLen=", pendingSubmit.code.length);
     },
     onPageSubmitResult(detail) {
       reportResult({
@@ -66,6 +72,8 @@
         submissionId: detail.submissionId,
         code: pendingSubmit && pendingSubmit.code,
         lang: pendingSubmit && pendingSubmit.lang,
+        url: pendingSubmit && pendingSubmit.url,
+        kind: pendingSubmit && pendingSubmit.kind,
       });
     },
     start() {
