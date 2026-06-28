@@ -150,10 +150,30 @@ export async function generateNoteFor(problemKey) {
   const session = await getSession(problemKey);
   const problem = await getProblem(problemKey);
   if (!session) throw new Error(`no session for ${problemKey}`);
-  if (!problem) throw new Error(`no problem meta for ${problemKey}`);
+
+  // 即使 GQL 失败导致 problem 元数据缺失,也用 session 里的 slug 构造兜底骨架,
+  // 让 agent 链路能继续执行(否则用户看不到任何 prompt 日志,无法诊断)。
+  let problemMeta = problem;
+  if (!problemMeta) {
+    const slug = (session && session.slug) || (problemKey && problemKey.startsWith("lc:") ? problemKey.slice(3) : problemKey);
+    problemMeta = {
+      problemId: 0,
+      titleSlug: slug,
+      title: slug,
+      difficulty: "Unknown",
+      tags: [],
+      isPaid: false,
+      url: (session && session.url) || `https://leetcode.cn/problems/${slug}/`,
+      related: [],
+      fetchedAt: nowISO(),
+      key: problemKey,
+      partial: true,
+    };
+    logger.warn("coord", `problem meta missing for ${problemKey}, using fallback skeleton; GQL may have failed. agent chain continues with partial data.`);
+  }
 
   const settings = await getSettings();
-  const note = newNoteSkeleton(problem);
+  const note = newNoteSkeleton(problemMeta);
   note.solving.startedAt = session.startedAt;
   note.solving.acceptedAt = session.acceptedAt;
   note.solving.durationSec = session.durationSec || 0;
@@ -169,7 +189,7 @@ export async function generateNoteFor(problemKey) {
   // 把失败尝试摘要给 agent 参考
   const failedAttempts = (session.attempts || []).filter((a) => !/accepted/i.test(a.status));
 
-  const ctx = { note, session, problem, settings, failedAttempts };
+  const ctx = { note, session, problem: problemMeta, settings, failedAttempts };
 
   const registry = getAgentRegistry();
   const enabled = settings.agents.enabled || [];
