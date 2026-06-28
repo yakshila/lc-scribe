@@ -1,0 +1,69 @@
+:root {
+  --bg: #0f1115;
+  --card: #181b22;
+  --card-2: #1f232c;
+  --text: #e6e8ee;
+  --muted: #8b93a7;
+  --accent: #ffa116;
+  --accent-2: #ffb84d;
+  --green: #00b8a3;
+  --red: #ff375f;
+  --border: #2a2f3a;
+  --radius: 12px;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  width: 340px;
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+.hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px 10px;
+}
+.logo { font-weight: 700; font-size: 15px; letter-spacing: .5px; }
+.logo span { color: var(--accent); font-weight: 600; }
+.status { font-size: 14px; color: var(--muted); }
+.status.ok { color: var(--green); }
+.status.warn { color: var(--accent); }
+
+.card {
+  margin: 8px 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+.card.active .card-title { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+.prob { font-size: 15px; font-weight: 600; margin: 4px 0 8px; }
+.meta-row { display: flex; gap: 14px; color: var(--muted); font-size: 12px; margin-bottom: 10px; }
+.actions { display: flex; gap: 8px; }
+button {
+  font: inherit; color: var(--text); cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--card-2);
+  border-radius: 8px; padding: 7px 12px;
+  transition: background .15s, border-color .15s;
+}
+button:hover { background: #2a2f3a; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #1a1205; font-weight: 600; }
+button.primary:hover { background: var(--accent-2); }
+button.ghost { background: transparent; }
+button:disabled { opacity: .5; cursor: default; }
+
+.stats { display: flex; justify-content: space-around; text-align: center; }
+.stat .num { font-size: 20px; font-weight: 700; color: var(--accent); }
+.stat .lbl { font-size: 11px; color: var(--muted); }
+
+.links { padding: 4px 8px; }
+.link {
+  width: 100%; text-align: left; display: flex; justify-content: space-between; align-items: center;
+  background: transparent; border: none; padding: 10px 8px;
+}
+.link:hover { background: var(--card-2); }
+.arrow { color: var(--muted); }
+
+.ftr { color: var(--muted); font-size: 11px; padding: 8px 16px 14px; text-align: center; }
+.hidden { display: none !important; }

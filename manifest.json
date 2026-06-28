@@ -1,0 +1,53 @@
+{
+  "manifest_version": 3,
+  "name": "LC Scribe",
+  "version": "0.1.0",
+  "description": "力扣刷题助手:自动识别题目与提交、关键节点提醒、AI 笔记生成、复习调度,可扩展 Agent 与上传器。",
+  "minimum_chrome_version": "110",
+  "permissions": ["storage", "notifications", "alarms", "tabs", "scripting", "downloads"],
+  "host_permissions": ["https://leetcode.cn/*"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
+  "background": {
+    "service_worker": "src/background/service-worker.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://leetcode.cn/problems/*", "https://leetcode.cn/submissions/detail/*"],
+      "js": [
+        "src/content/content.js",
+        "src/content/leetcode-api.js",
+        "src/content/problem-detector.js",
+        "src/content/timer-tracker.js",
+        "src/content/submission-watcher.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_title": "LC Scribe",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "options_ui": {
+    "page": "src/options/options.html",
+    "open_in_tab": true
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["src/content/page-hook.js"],
+      "matches": ["https://leetcode.cn/*"]
+    }
+  ]
+}

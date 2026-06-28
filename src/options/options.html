@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LC Scribe · 设置</title>
+  <link rel="stylesheet" href="options.css" />
+</head>
+<body>
+  <div class="wrap">
+    <h1>LC Scribe 设置</h1>
+    <p class="sub">配置模型、提醒、复习与上传器。所有改动自动保存。</p>
+
+    <!-- 模型 -->
+    <section class="block">
+      <h2>第三方模型 <span class="tag">OpenAI 兼容</span></h2>
+      <label class="row"><input type="checkbox" id="llmEnabled" /> 启用 LLM(用于笔记生成 / 代码分析)</label>
+      <div class="grid">
+        <label>Base URL<input type="text" id="llmBaseURL" placeholder="https://api.openai.com/v1" /></label>
+        <label>Model<input type="text" id="llmModel" placeholder="gpt-4o-mini" /></label>
+        <label>API Key<input type="password" id="llmApiKey" placeholder="sk-..." /></label>
+        <label>Temperature<input type="number" id="llmTemp" min="0" max="2" step="0.1" /></label>
+        <label>Max Tokens<input type="number" id="llmMaxTokens" min="100" max="8000" step="100" /></label>
+        <label>Timeout(ms)<input type="number" id="llmTimeout" min="5000" max="120000" step="1000" /></label>
+      </div>
+      <div class="row buttons">
+        <button id="btnAuthorize" class="ghost">授权域名</button>
+        <button id="btnTestLLM" class="ghost">测试连接</button>
+        <span class="hint" id="llmHint"></span>
+      </div>
+      <p class="tip">支持 OpenAI / DeepSeek / 智谱 GLM / Kimi / 通义(OpenAI 模式)/ 本地 Ollama。Base URL 填到 <code>/v1</code> 即可。</p>
+    </section>
+
+    <!-- 通知 -->
+    <section class="block">
+      <h2>关键节点提醒</h2>
+      <label class="row"><input type="checkbox" id="onAccepted" /> AC 时提醒</label>
+      <label class="row"><input type="checkbox" id="onStuckEnabled" /> 长时间未 AC 提醒</label>
+      <label class="row">卡壳阈值(分钟)<input type="number" id="onStuckMinutes" min="3" max="120" step="1" /></label>
+      <label class="row"><input type="checkbox" id="onDueReview" /> 到期复习提醒</label>
+      <label class="row">每日复习检查时刻(0-23 点)<input type="number" id="reviewCheckHour" min="0" max="23" step="1" /></label>
+    </section>
+
+    <!-- 笔记 -->
+    <section class="block">
+      <h2>笔记生成</h2>
+      <label class="row"><input type="checkbox" id="autoGenerate" /> AC 后自动生成笔记(否则点通知按钮手动生成)</label>
+      <label class="row">输出语言
+        <select id="noteLang"><option value="zh">中文</option><option value="en">English</option></select>
+      </label>
+    </section>
+
+    <!-- 复习 -->
+    <section class="block">
+      <h2>复习调度 <span class="tag">SM-2</span></h2>
+      <label class="row"><input type="checkbox" id="enableReminders" /> 启用复习提醒</label>
+      <label class="row">每日最多建议复习数<input type="number" id="maxDuePerDay" min="1" max="50" step="1" /></label>
+    </section>
+
+    <!-- Agent -->
+    <section class="block">
+      <h2>Agent 管理</h2>
+      <p class="tip">按能力(capability)开关。后续接入第三方 agent 也会出现在这里。</p>
+      <div id="agentList" class="agent-list"></div>
+    </section>
+
+    <!-- 上传器 -->
+    <section class="block">
+      <h2>上传器</h2>
+      <div class="uploader">
+        <div class="up-hdr">
+          <label><input type="checkbox" id="feishuEnabled" /> 飞书 Webhook</label>
+          <span class="up-name">feishu</span>
+        </div>
+        <div class="grid">
+          <label>Webhook URL<input type="text" id="feishuWebhook" placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/xxx" /></label>
+          <label>机器人名<input type="text" id="feishuBotName" placeholder="LC Scribe" /></label>
+        </div>
+        <div class="row buttons">
+          <button id="btnAuthFeishu" class="ghost">授权飞书域名</button>
+          <button id="btnTestFeishu" class="ghost">测试</button>
+          <span class="hint" id="feishuHint"></span>
+        </div>
+      </div>
+      <div class="uploader">
+        <div class="up-hdr">
+          <label><input type="checkbox" id="mdEnabled" checked /> Markdown 导出</label>
+          <span class="up-name">markdown</span>
+        </div>
+        <label class="row"><input type="checkbox" id="mdAutoDownload" /> AC 自动生成笔记后自动下载 .md</label>
+        <p class="tip">点击笔记页"导出 Markdown"也可手动下载。</p>
+      </div>
+    </section>
+
+    <div class="savebar">
+      <span id="savedHint" class="saved"></span>
+      <button id="btnTriggerReview" class="ghost">立即检查复习</button>
+    </div>
+  </div>
+  <script type="module" src="options.js"></script>
+</body>
+</html>

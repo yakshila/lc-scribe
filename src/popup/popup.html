@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LC Scribe</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header class="hdr">
+    <div class="logo">LC<span>Scribe</span></div>
+    <div class="status" id="llmStatus" title="LLM 配置状态">●</div>
+  </header>
+
+  <section id="activeCard" class="card active hidden">
+    <div class="card-title">当前做题</div>
+    <div class="prob" id="probSlug">—</div>
+    <div class="meta-row">
+      <span id="elapsed">用时 —</span>
+      <span id="attempts">提交 0 次</span>
+    </div>
+    <div class="actions">
+      <button id="btnGenNote" class="primary">生成笔记</button>
+      <button id="btnOpenProblem" class="ghost">打开题目</button>
+    </div>
+  </section>
+
+  <section class="card stats">
+    <div class="stat"><div class="num" id="statAc">0</div><div class="lbl">已 AC</div></div>
+    <div class="stat"><div class="num" id="statNotes">0</div><div class="lbl">笔记</div></div>
+    <div class="stat"><div class="num" id="statDue">0</div><div class="lbl">待复习</div></div>
+  </section>
+
+  <section class="card links">
+    <button id="btnNotes" class="link">笔记与复习 <span class="arrow">›</span></button>
+    <button id="btnSettings" class="link">设置 <span class="arrow">›</span></button>
+  </section>
+
+  <footer class="ftr" id="hint">点设置配置第三方模型后即可生成 AI 笔记</footer>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

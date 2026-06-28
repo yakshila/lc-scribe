@@ -1,0 +1,81 @@
+:root {
+  --bg: #0f1115;
+  --card: #181b22;
+  --card-2: #1f232c;
+  --text: #e6e8ee;
+  --muted: #8b93a7;
+  --accent: #ffa116;
+  --green: #00b8a3;
+  --red: #ff375f;
+  --border: #2a2f3a;
+  --radius: 12px;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+.wrap { max-width: 760px; margin: 0 auto; padding: 32px 20px 80px; }
+h1 { font-size: 24px; margin: 0 0 4px; }
+.sub { color: var(--muted); margin: 0 0 24px; }
+.block {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  margin-bottom: 16px;
+}
+h2 { font-size: 16px; margin: 0 0 14px; display: flex; align-items: center; gap: 8px; }
+.tag { font-size: 11px; color: var(--accent); border: 1px solid var(--accent); padding: 1px 8px; border-radius: 999px; font-weight: 500; }
+
+label { display: block; }
+.row { display: flex; align-items: center; gap: 10px; margin: 8px 0; color: var(--text); }
+.row.buttons { margin-top: 14px; }
+label.row { cursor: default; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+.grid label { color: var(--muted); font-size: 12px; }
+input[type="text"], input[type="password"], input[type="number"], select {
+  width: 100%; margin-top: 4px;
+  background: var(--card-2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 10px; font: inherit;
+}
+input[type="text"]:focus, input[type="password"]:focus, input[type="number"]:focus, select:focus {
+  outline: none; border-color: var(--accent);
+}
+input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+
+button {
+  font: inherit; color: var(--text); cursor: pointer;
+  border: 1px solid var(--border); background: var(--card-2);
+  border-radius: 8px; padding: 8px 14px;
+}
+button:hover { background: #2a2f3a; }
+button.ghost { background: transparent; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #1a1205; font-weight: 600; }
+
+.hint { font-size: 12px; color: var(--muted); }
+.hint.ok { color: var(--green); }
+.hint.err { color: var(--red); }
+.tip { color: var(--muted); font-size: 12px; margin: 10px 0 0; }
+.tip code { background: var(--card-2); padding: 1px 6px; border-radius: 4px; }
+
+.agent-list { display: flex; flex-direction: column; gap: 8px; }
+.agent-item {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--card-2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 12px;
+}
+.agent-item .name { font-weight: 600; }
+.agent-item .desc { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.agent-item .caps { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.agent-item .cap { font-size: 11px; background: var(--bg); border: 1px solid var(--border); padding: 1px 7px; border-radius: 999px; color: var(--muted); }
+
+.uploader { border-top: 1px solid var(--border); padding-top: 14px; margin-top: 14px; }
+.uploader:first-child { border-top: none; padding-top: 0; margin-top: 0; }
+.up-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.up-name { font-size: 12px; color: var(--muted); font-family: ui-monospace, monospace; }
+
+.savebar { display: flex; justify-content: space-between; align-items: center; margin-top: 24px; }
+.saved { color: var(--green); font-size: 13px; opacity: 0; transition: opacity .2s; }
+.saved.show { opacity: 1; }

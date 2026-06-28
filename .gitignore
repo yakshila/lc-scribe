@@ -1,0 +1,22 @@
+# 依赖
+node_modules/
+
+# 构建产物
+dist/
+build/
+
+# 编辑器/系统
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo
+
+# 日志/临时
+*.log
+.tmp/
+
+# 私密配置(若以后有本地密钥文件)
+.env
+.env.local
+secrets.json

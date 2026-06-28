@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>笔记 · LC Scribe</title>
+  <link rel="stylesheet" href="note-viewer.css" />
+</head>
+<body>
+  <div class="wrap">
+    <header class="hdr">
+      <div class="logo">LC Scribe · 笔记</div>
+      <nav class="tabs">
+        <button class="tab active" data-tab="notes">全部笔记</button>
+        <button class="tab" data-tab="review">复习 <span id="dueBadge" class="badge hidden">0</span></button>
+      </nav>
+    </header>
+
+    <!-- 列表 -->
+    <section id="viewList" class="view">
+      <div class="toolbar">
+        <input type="search" id="searchBox" placeholder="搜索题号/标题/标签…" />
+      </div>
+      <div id="noteList" class="note-list"></div>
+    </section>
+
+    <!-- 复习 -->
+    <section id="viewReview" class="view hidden">
+      <div id="reviewList" class="note-list"></div>
+      <p id="reviewEmpty" class="empty hidden">没有到期复习,继续保持 🎯</p>
+    </section>
+
+    <!-- 详情 -->
+    <section id="viewDetail" class="view hidden">
+      <button class="back" id="btnBack">‹ 返回</button>
+      <article id="noteDetail" class="detail"></article>
+      <div class="detail-actions" id="detailActions">
+        <div class="review-grade">
+          <span>复习评分:</span>
+          <button data-grade="0" class="grade g0">忘记</button>
+          <button data-grade="2" class="grade g2">困难</button>
+          <button data-grade="4" class="grade g4">良好</button>
+          <button data-grade="5" class="grade g5">简单</button>
+        </div>
+        <div class="right">
+          <button id="btnExportMd" class="ghost">导出 Markdown</button>
+          <button id="btnUploadFeishu" class="ghost">上传飞书</button>
+          <button id="btnDelete" class="ghost danger">删除</button>
+        </div>
+      </div>
+      <p class="hint" id="detailHint"></p>
+    </section>
+  </div>
+  <script type="module" src="note-viewer.js"></script>
+</body>
+</html>
