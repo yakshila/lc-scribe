@@ -29,6 +29,10 @@
     } catch (e) {
       LCC.utils.log("warn", "detector", "page global read failed", e);
     }
+    // 1b. 兜底:从页面 DOM 读题目标题和编号(轻量,不依赖 GQL)
+    if (!problem) {
+      problem = readFromDOM(slug);
+    }
     // 2. 告知 background 进入题目(无论是否拿到元数据,先开始计时)
     LCC.bg("PROBLEM_ENTERED", {
       slug,
@@ -36,8 +40,8 @@
       url: location.href,
       problem: problem || null,
     });
-    // 3. 后台异步补全题目元数据(GQL)
-    if (!problem && LCC.leetcodeApi) {
+    // 3. 后台异步补全/完善题目元数据(GQL)。即使 DOM 兜底给了 partial 数据,也尝试拉全量。
+    if (LCC.leetcodeApi && (!problem || problem.partial)) {
       try {
         const full = await LCC.leetcodeApi.fetchQuestion(slug);
         if (full) {
@@ -46,6 +50,30 @@
       } catch (e) {
         LCC.utils.log("warn", "detector", "fetchQuestion failed", e);
       }
+    }
+  }
+
+  // 从 DOM 读题目标题/编号,作为 GQL 失败时的兜底元数据。
+  // 不指望拿到 tags/difficulty 等完整字段,只要能让笔记骨架建立即可。
+  function readFromDOM(slug) {
+    try {
+      const titleEl = document.querySelector("h1, [data-cy='question-title'], .css-v3d350, .title__Nq0YI");
+      const title = titleEl ? titleEl.textContent.trim() : slug;
+      return {
+        problemId: 0,
+        titleSlug: slug,
+        title,
+        difficulty: "Unknown",
+        tags: [],
+        isPaid: false,
+        url: `https://leetcode.cn/problems/${slug}/`,
+        related: [],
+        fetchedAt: new Date().toISOString(),
+        key: `lc:${slug}`,
+        partial: true, // 标记元数据不完整
+      };
+    } catch (e) {
+      return null;
     }
   }
 

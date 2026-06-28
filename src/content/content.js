@@ -16,7 +16,14 @@
   LCC.utils = {
     parseProblemSlug(url) {
       if (!url) return null;
-      const m = String(url).match(/\/problems\/([^/?#]+)/);
+      // 排除 /problems/<slug>/submissions/<id>/ 这种结果页 —— 它的 slug 段会被
+      // 误匹配成 "submissions"。先尝试 /problems/<slug>/submissions/ 模式取第一个段。
+      let m = String(url).match(/\/problems\/([^/?#]+)\/submissions\//);
+      if (m) return decodeURIComponent(m[1]);
+      // 普通题目页 /problems/<slug>/
+      m = String(url).match(/\/problems\/([^/?#]+)/);
+      // "submissions" 不是合法 slug(那是结果页路径段),排除
+      if (m && m[1].toLowerCase() === "submissions") return null;
       return m ? decodeURIComponent(m[1]) : null;
     },
     problemKey(slug) {

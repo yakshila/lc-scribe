@@ -8,9 +8,13 @@
   async function graphql(query, variables) {
     const resp = await fetch(GRAPHQL_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "content-type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+      },
       body: JSON.stringify({ query, variables, operationName: null }),
       credentials: "include",
+      // content script 自带 leetcode.cn 的 cookie;referer/origin 由浏览器自动带上(同源)
     });
     if (!resp.ok) throw new Error(`leetcode graphql ${resp.status}`);
     const json = await resp.json();
@@ -32,7 +36,6 @@
         topicTags { name translatedName slug }
         hints { content }
         sampleTestCase
-        similar { titleSlug title difficulty }
       }
     }`;
 
@@ -50,7 +53,7 @@
         tags: (q.topicTags || []).map((t) => t.translatedName || t.name),
         isPaid: !!q.isPaidOnly,
         url: `https://leetcode.cn/problems/${q.titleSlug}/`,
-        related: (q.similar || []).map((r) => ({ titleSlug: r.titleSlug, title: r.title, difficulty: r.difficulty })),
+        related: [],
         fetchedAt: new Date().toISOString(),
         key: `lc:${q.titleSlug}`,
       };
