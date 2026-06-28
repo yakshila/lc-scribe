@@ -119,7 +119,7 @@
   };
 
   // —— 页面内 toast(系统通知失败时的兜底,确保用户能看到 AC 等关键提示) ——
-  function showToast({ title, message, type = "info", duration = 6000 }) {
+  function showToast({ title, message, type = "info", duration = 6000, buttons }) {
     try {
       const colors = {
         success: { bg: "#1a3a2a", border: "#5CC863", icon: "✓" },
@@ -138,9 +138,45 @@
         "display:flex", "gap:10px", "align-items:flex-start",
         "transition:opacity .3s, transform .3s", "opacity:0", "transform:translateX(20px)",
       ].join(";") + ";";
-      el.innerHTML = '<div style="color:' + c.border + ';font-weight:bold;font-size:16px;flex-shrink:0">' + c.icon + '</div>'
-        + '<div><div style="font-weight:600;margin-bottom:2px">' + escapeHtml(title || "LC Scribe") + '</div>'
-        + (message ? '<div style="opacity:.85;font-size:13px">' + escapeHtml(message) + '</div>' : '') + '</div>';
+      let html = '<div style="color:' + c.border + ';font-weight:bold;font-size:16px;flex-shrink:0">' + c.icon + '</div>'
+        + '<div style="flex:1"><div style="font-weight:600;margin-bottom:2px">' + escapeHtml(title || "LC Scribe") + '</div>'
+        + (message ? '<div style="opacity:.85;font-size:13px;margin-bottom:8px">' + escapeHtml(message) + '</div>' : '');
+      // 按钮(最多2个,模拟系统通知的 buttons 行为)
+      if (Array.isArray(buttons) && buttons.length) {
+        html += '<div style="display:flex;gap:8px;margin-top:4px">';
+        buttons.slice(0, 2).forEach((b, i) => {
+          const primary = i === 0;
+          const btnBg = primary ? c.border : "transparent";
+          const btnColor = primary ? "#1a1a1a" : c.border;
+          html += '<button data-lcc-btn-idx="' + i + '" style="'
+            + 'background:' + btnBg + ';color:' + btnColor + ';'
+            + 'border:1px solid ' + c.border + ';border-radius:5px;'
+            + 'padding:5px 12px;font-size:13px;font-weight:600;cursor:pointer;'
+            + 'font-family:inherit;transition:opacity .15s"'
+            + ' onmouseover="this.style.opacity=0.85" onmouseout="this.style.opacity=1"'
+            + '>' + escapeHtml(b.title || "按钮") + '</button>';
+        });
+        html += '</div>';
+      }
+      html += '</div>';
+      el.innerHTML = html;
+
+      // 绑定按钮点击:发消息回 background 触发对应 action
+      if (Array.isArray(buttons) && buttons.length) {
+        el.querySelectorAll("button[data-lcc-btn-idx]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const idx = Number(btn.getAttribute("data-lcc-btn-idx"));
+            const b = buttons[idx];
+            if (b && b.action) {
+              // 告诉 background 执行这个 action(如 generate-note)
+              LCC.bg("TOAST_BUTTON", { action: b.action, problemKey: b.problemKey });
+            }
+            // 点击后立即关闭 toast
+            try { el.remove(); } catch (_) {}
+          });
+        });
+      }
+
       document.documentElement.appendChild(el);
       requestAnimationFrame(() => {
         el.style.opacity = "1";

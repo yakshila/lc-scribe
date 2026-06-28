@@ -158,7 +158,11 @@ async function onAccepted(problemKey, session) {
         title: "Accepted!",
         message: `${session.slug} · 用时 ${formatDuration(session.durationSec)} · ${session.attempts.length} 次提交`,
         type: "success",
-        duration: 8000,
+        duration: 30000, // 带按钮的 toast 保留 30 秒,给用户时间点
+        buttons: [
+          { title: "生成笔记", action: "generate-note", problemKey },
+          { title: "稍后", action: "later" },
+        ],
       });
     }
   }
@@ -410,6 +414,15 @@ export async function handleMessage(msg, sender) {
     case "PROBLEM_ENTERED": return await onProblemEntered(payload || {}, sender);
     case "PROBLEM_META": return await onProblemMeta(payload || {});
     case "SUBMISSION_RESULT": return await onSubmissionResult(payload || {}, sender);
+    case "TOAST_BUTTON": {
+      // toast 按钮点击回调(系统通知失败时的兜底交互)
+      const { action, problemKey } = payload || {};
+      logger.info("coord", `toast button: ${action} for ${problemKey}`);
+      if (action === "generate-note" && problemKey) {
+        generateNoteFor(problemKey).catch((e) => logger.error("coord", "gen-note from toast", e));
+      }
+      return { ok: true };
+    }
     case "TIMER_TICK": {
       // 更新 session elapsed(供 popup 实时显示)
       if (payload && payload.problemKey) {
