@@ -4,7 +4,12 @@
 /** 从 leetcode.cn URL 提取题目 slug,匹配不到返回 null */
 export function parseProblemSlug(url = location && location.href) {
   if (!url) return null;
-  const m = String(url).match(/\/problems\/([^/?#]+)/);
+  const s = String(url);
+  // 排除 /problems/<slug>/submissions/<id>/ 结果页
+  let m = s.match(/\/problems\/([^/?#]+)\/submissions\//);
+  if (m) return decodeURIComponent(m[1]);
+  m = s.match(/\/problems\/([^/?#]+)/);
+  if (m && m[1].toLowerCase() === "submissions") return null;
   return m ? decodeURIComponent(m[1]) : null;
 }
 

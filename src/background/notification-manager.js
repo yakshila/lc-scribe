@@ -9,15 +9,21 @@ const pendingActions = new Map();
 export async function notify({ id, title, message, iconUrl, buttons, onClick, onButton }) {
   const notifId = id || NOTIF_ID_PREFIX + Date.now();
   const btns = (buttons || []).slice(0, 2).map((b) => ({ title: b.title }));
+  // MV3:iconUrl 用相对路径(相对 manifest 根),notifications 系统会解析为扩展内资源。
+  // 不要用 chrome.runtime.getURL() 绝对 URL,某些 Chrome 版本会报 "Unable to download"。
+  // 不要用 data URI,notifications 系统不接受。
   const opts = {
     type: "basic",
-    iconUrl: iconUrl || "icons/icon128.png",
+    iconUrl: "icons/icon48.png",
     title: title || "LC Scribe",
     message: message || "",
     priority: 2,
-    requireInteraction: !buttons, // 带按钮的需交互,让用户能点
+    requireInteraction: false,
   };
-  if (btns.length) opts.buttons = btns;
+  if (btns.length) {
+    opts.buttons = btns;
+    // 带按钮的通知用更长的显示时间,但不用 requireInteraction(它有时导致渲染问题)
+  }
 
   // 记录回调
   pendingActions.set(notifId, { onClick, onButton, buttons });
@@ -26,8 +32,10 @@ export async function notify({ id, title, message, iconUrl, buttons, onClick, on
     chrome.notifications.create(notifId, opts, (createdId) => {
       if (chrome.runtime.lastError) {
         logger.warn("notif", "create error:", chrome.runtime.lastError.message);
+        resolve({ ok: false, id: null });
+      } else {
+        resolve({ ok: true, id: createdId });
       }
-      resolve(createdId);
     });
   });
 }

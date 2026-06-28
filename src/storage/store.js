@@ -17,8 +17,8 @@ export const DEFAULT_SETTINGS = {
     apiKey: "",
     model: "gpt-4o-mini",
     temperature: 0.3,
-    maxTokens: 1500,
-    timeoutMs: 30000,
+    maxTokens: 4000,
+    timeoutMs: 60000,
   },
   notifications: {
     onAccepted: true,
@@ -49,7 +49,18 @@ export const DEFAULT_SETTINGS = {
 /** 读取 settings,与默认值深合并 */
 export async function getSettings() {
   const { settings } = await chrome.storage.local.get("settings");
-  return deepMerge(DEFAULT_SETTINGS, settings || {});
+  const merged = deepMerge(DEFAULT_SETTINGS, settings || {});
+  // 迁移:旧的默认 maxTokens=1500 会导致笔记 JSON 被截断,统一提升到 4000
+  if (!merged.llm || !merged.llm.maxTokens || merged.llm.maxTokens < 4000) {
+    merged.llm = merged.llm || {};
+    merged.llm.maxTokens = 4000;
+  }
+  // 迁移:旧的默认 timeoutMs=30000 对大模型不够,提升到 60000
+  if (!merged.llm || !merged.llm.timeoutMs || merged.llm.timeoutMs < 60000) {
+    merged.llm = merged.llm || {};
+    merged.llm.timeoutMs = 60000;
+  }
+  return merged;
 }
 
 export async function saveSettings(partial) {
@@ -211,6 +222,9 @@ export function newNoteSkeleton(problem) {
       attemptCount: 0,
       firstAccepted: false,
       languagesUsed: [],
+      // 完整做题轨迹:每一次运行/提交的快照,供 AI 分析踩坑点、用户回顾试错过程。
+      // 元素结构: { kind: "run"|"submit", status, statusMsg, runtime, memory, lang, submissionId, ts, code?, url? }
+      timeline: [],
     },
     approach: {
       intuition: "",

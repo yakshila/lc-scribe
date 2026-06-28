@@ -135,8 +135,35 @@ async function openDetail(noteId) {
   const md = noteToMarkdown(note);
   $("noteDetail").innerHTML = renderMarkdown(md);
   $("detailHint").textContent = "";
+  // 代码块语法高亮(highlight.js 已在 html 中 defer 引入)
+  highlightCodeBlocks($("noteDetail"));
   // 滚动到顶部
   window.scrollTo(0, 0);
+}
+
+// 用 highlight.js 高亮容器内所有 <pre><code> 块。
+// LeetCode 的语言名(python3/golang 等)需要映射到 hljs 的语言名。
+function highlightCodeBlocks(container) {
+  if (!container || typeof hljs === "undefined") return;
+  const LANG_MAP = {
+    python3: "python", python: "python",
+    golang: "go", go: "go",
+    cpp: "cpp", "c++": "cpp", c: "c",
+    java: "java", javascript: "javascript", js: "javascript",
+    typescript: "typescript", ts: "typescript",
+    rust: "rust", mysql: "sql", sql: "sql", sqlserver: "sql",
+    csharp: "csharp", "c#": "csharp", kotlin: "kotlin", swift: "swift",
+    ruby: "ruby", php: "php", scala: "scala", bash: "bash", shell: "bash",
+  };
+  container.querySelectorAll("pre code").forEach((block) => {
+    // 从 class="lang-xxx" 取语言
+    const m = /lang-(\S+)/.exec(block.className || "");
+    const lang = m ? m[1].toLowerCase() : "";
+    if (lang && LANG_MAP[lang]) {
+      block.className = "language-" + LANG_MAP[lang];
+    }
+    try { hljs.highlightElement(block); } catch (_) {}
+  });
 }
 
 $("btnBack").addEventListener("click", () => {

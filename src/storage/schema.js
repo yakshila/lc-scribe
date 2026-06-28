@@ -26,9 +26,10 @@ export const NOTE_FIELDS = {
     startedAt: "ISO 进入题目时刻",
     acceptedAt: "ISO 首次 AC 时刻(null 表示未 AC)",
     durationSec: "number 从开始到 AC 的秒数",
-    attemptCount: "number 提交次数",
+    attemptCount: "number 提交次数(不含运行)",
     firstAccepted: "boolean 是否一次 AC",
     languagesUsed: "string[] 用过的语言",
+    timeline: "{kind:'run'|'submit', status, statusMsg, runtime, memory, lang, submissionId, ts, code?, url?}[] 完整做题轨迹(运行+提交)",
   },
   approach: {
     intuition: "string 题目直觉/第一想法",
@@ -43,7 +44,7 @@ export const NOTE_FIELDS = {
     keyLines: "{line:number, note:string}[] 关键行标注",
   },
   insights: {
-    pitfalls: "string[] 自己踩的坑",
+    pitfalls: "{symptom, rootCause, badCode?, fix?, lesson?}[] 踩坑深度分析:现象→根因→错代码→修法→规律",
     lessonsLearned: "string[] 学到的东西",
     patterns: "string[] 可复用模式",
     relatedProblems: "string[] 相关题号/slug",
@@ -109,6 +110,21 @@ export function noteToMarkdown(note) {
   L.push(`- 语言: ${(s.languagesUsed || []).join(", ") || "—"}`);
   L.push("");
 
+  // 完整做题轨迹(运行 + 提交),体现试错过程
+  if (s.timeline && s.timeline.length) {
+    L.push("## 做题轨迹");
+    L.push("| # | 类型 | 结果 | runtime | memory | 语言 | 时间 |");
+    L.push("|---|------|------|---------|--------|------|------|");
+    s.timeline.forEach((a, i) => {
+      const kindLabel = a.kind === "run" ? "运行" : "提交";
+      const rt = a.runtime != null ? `${a.runtime}ms` : "—";
+      const mem = a.memory != null ? `${a.memory}B` : "—";
+      const t = a.ts ? new Date(a.ts).toLocaleString("zh-CN", { hour12: false }) : "—";
+      L.push(`| ${i + 1} | ${kindLabel} | ${a.status} | ${rt} | ${mem} | ${a.lang || "—"} | ${t} |`);
+    });
+    L.push("");
+  }
+
   L.push("## 思路");
   if (a.intuition) L.push(`**直觉**: ${a.intuition}`, "");
   if (a.approach) L.push(`**解法**: ${a.approach}`, "");
@@ -131,7 +147,22 @@ export function noteToMarkdown(note) {
 
   if (ins && (ins.pitfalls?.length || ins.lessonsLearned?.length || ins.patterns?.length || ins.relatedProblems?.length)) {
     L.push("## 经验提炼");
-    if (ins.pitfalls?.length) { L.push("**踩坑**:"); ins.pitfalls.forEach((x) => L.push(`- ${x}`)); }
+    if (ins.pitfalls?.length) {
+      L.push("**踩坑复盘**:");
+      ins.pitfalls.forEach((p, i) => {
+        // 兼容新旧格式:旧格式是字符串,新格式是对象 {symptom, rootCause, badCode, fix, lesson}
+        if (typeof p === "string") {
+          L.push(`${i + 1}. ${p}`);
+          return;
+        }
+        L.push(`### 坑 ${i + 1}: ${p.symptom || ""}`);
+        if (p.rootCause) L.push(`- **根因**: ${p.rootCause}`);
+        if (p.badCode) { L.push(`- **错代码**:`); L.push("```" + langToFence(c.language)); L.push(p.badCode); L.push("```"); }
+        if (p.fix) L.push(`- **修法**: ${p.fix}`);
+        if (p.lesson) L.push(`- **规律**: ${p.lesson}`);
+        L.push("");
+      });
+    }
     if (ins.lessonsLearned?.length) { L.push("**收获**:"); ins.lessonsLearned.forEach((x) => L.push(`- ${x}`)); }
     if (ins.patterns?.length) { L.push("**可复用模式**:"); ins.patterns.forEach((x) => L.push(`- ${x}`)); }
     if (ins.relatedProblems?.length) { L.push("**相关题目**: " + ins.relatedProblems.join(", ")); }

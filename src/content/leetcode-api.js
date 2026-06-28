@@ -8,11 +8,21 @@
   async function graphql(query, variables) {
     const resp = await fetch(GRAPHQL_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "content-type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+      },
       body: JSON.stringify({ query, variables, operationName: null }),
       credentials: "include",
+      // content script 自带 leetcode.cn 的 cookie;referer/origin 由浏览器自动带上(同源)
     });
-    if (!resp.ok) throw new Error(`leetcode graphql ${resp.status}`);
+    if (!resp.ok) {
+      // 读取错误响应体,便于定位 400 原因
+      let errBody = "";
+      try { errBody = await resp.text(); } catch (_) {}
+      LCC.utils.log("error", "lc-api", `graphql ${resp.status} body:`, errBody.slice(0, 500));
+      throw new Error(`leetcode graphql ${resp.status}: ${errBody.slice(0, 200)}`);
+    }
     const json = await resp.json();
     if (json.errors && json.errors.length) throw new Error(json.errors[0].message);
     return json.data;
@@ -30,9 +40,8 @@
         difficulty
         isPaidOnly
         topicTags { name translatedName slug }
-        hints { content }
+        hints
         sampleTestCase
-        similar { titleSlug title difficulty }
       }
     }`;
 
@@ -49,8 +58,11 @@
         difficulty: q.difficulty,
         tags: (q.topicTags || []).map((t) => t.translatedName || t.name),
         isPaid: !!q.isPaidOnly,
+        content: q.content || "", // 题目正文(HTML),供 AI 生成笔记用
+        hints: Array.isArray(q.hints) ? q.hints.filter(Boolean) : [],
+        sampleTestCase: q.sampleTestCase || "",
         url: `https://leetcode.cn/problems/${q.titleSlug}/`,
-        related: (q.similar || []).map((r) => ({ titleSlug: r.titleSlug, title: r.title, difficulty: r.difficulty })),
+        related: [],
         fetchedAt: new Date().toISOString(),
         key: `lc:${q.titleSlug}`,
       };
