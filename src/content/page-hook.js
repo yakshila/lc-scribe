@@ -93,7 +93,7 @@
       if (m !== "GET" && m !== "HEAD" && u) {
         const isNoise = u.includes("/graphql") === false && (u.includes("/event") || u.includes("/track") || u.includes("/log") || u.includes("/monitor"));
         if (!isNoise) {
-          console.log("[LCC:info][page-hook] XHR POST", m, u, "hasBody=", !!body);
+          console.log("[LCC:debug][page-hook] XHR POST", m, u, "hasBody=", !!body);
         }
       }
     } catch (_) {}

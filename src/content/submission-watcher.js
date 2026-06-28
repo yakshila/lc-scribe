@@ -83,22 +83,6 @@
     },
   };
 
-  // —— 注入 page context 钩子(已废弃,改由 manifest world:MAIN 注入;保留为兜底) ——
-  function injectPageHook() {
-    if (window.__LCC_PAGE_HOOK__) return; // manifest 已注入
-    try {
-      const url = chrome.runtime.getURL("src/content/page-hook.js");
-      const s = document.createElement("script");
-      s.src = url;
-      s.async = false;
-      s.onload = () => s.remove();
-      (document.head || document.documentElement).appendChild(s);
-      LCC.utils.log("info", "submit", "page-hook injected (fallback script-tag)");
-    } catch (e) {
-      LCC.utils.log("error", "submit", "inject page-hook failed", e);
-    }
-  }
-
   // —— DOM 兜底:监听结果文本 ——
   // 注意:不能用全文扫描找 "Accepted",因为题目页统计区本身就有 "Accepted: 1.2M" 字样,
   // 会在页面加载时误触发。只用结果容器选择器 + 短文本匹配。

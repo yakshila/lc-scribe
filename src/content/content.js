@@ -148,20 +148,20 @@
           const primary = i === 0;
           const btnBg = primary ? c.border : "transparent";
           const btnColor = primary ? "#1a1a1a" : c.border;
+          // 注意:不能用 inline onmouseover/onmouseout,LeetCode CSP 会拦截 inline 事件处理器
           html += '<button data-lcc-btn-idx="' + i + '" style="'
             + 'background:' + btnBg + ';color:' + btnColor + ';'
             + 'border:1px solid ' + c.border + ';border-radius:5px;'
             + 'padding:5px 12px;font-size:13px;font-weight:600;cursor:pointer;'
-            + 'font-family:inherit;transition:opacity .15s"'
-            + ' onmouseover="this.style.opacity=0.85" onmouseout="this.style.opacity=1"'
-            + '>' + escapeHtml(b.title || "按钮") + '</button>';
+            + 'font-family:inherit;transition:opacity .15s">'
+            + escapeHtml(b.title || "按钮") + '</button>';
         });
         html += '</div>';
       }
       html += '</div>';
       el.innerHTML = html;
 
-      // 绑定按钮点击:发消息回 background 触发对应 action
+      // 绑定按钮事件:click 触发 action + hover 效果(用 addEventListener,避免被 CSP 拦截)
       if (Array.isArray(buttons) && buttons.length) {
         el.querySelectorAll("button[data-lcc-btn-idx]").forEach((btn) => {
           btn.addEventListener("click", () => {
@@ -174,6 +174,8 @@
             // 点击后立即关闭 toast
             try { el.remove(); } catch (_) {}
           });
+          btn.addEventListener("mouseover", () => { btn.style.opacity = "0.85"; });
+          btn.addEventListener("mouseout", () => { btn.style.opacity = "1"; });
         });
       }
 
