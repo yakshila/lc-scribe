@@ -155,6 +155,32 @@ export async function generateNoteFor(problemKey) {
   // 即使 GQL 失败导致 problem 元数据缺失,也用 session 里的 slug 构造兜底骨架,
   // 让 agent 链路能继续执行(否则用户看不到任何 prompt 日志,无法诊断)。
   let problemMeta = problem;
+  // 如果 problem meta 缺失或 partial,尝试向 content script 同步拉取一次(GQL),
+  // 解决"进入题目时 GQL 还没回来就 AC 了"的竞态。
+  if (!problemMeta || problemMeta.partial) {
+    const slug = (session && session.slug) || (problemKey && problemKey.startsWith("lc:") ? problemKey.slice(3) : problemKey);
+    const tabId = tabMap.get(problemKey);
+    if (tabId != null) {
+      logger.info("coord", `problem meta missing/partial for ${problemKey}, requesting REFRESH_PROBLEM_META from tab ${tabId}`);
+      try {
+        const resp = await new Promise((resolve) => {
+          chrome.tabs.sendMessage(tabId, { type: "REFRESH_PROBLEM_META", payload: { slug } }, (r) => {
+            if (chrome.runtime.lastError) resolve({ ok: false, error: chrome.runtime.lastError.message });
+            else resolve(r);
+          });
+        });
+        if (resp && resp.ok && resp.problem) {
+          problemMeta = resp.problem;
+          await saveProblem(problemMeta);
+          logger.info("coord", `REFRESH_PROBLEM_META success: id=${problemMeta.problemId} title=${problemMeta.title}`);
+        } else {
+          logger.warn("coord", `REFRESH_PROBLEM_META failed:`, resp && resp.error);
+        }
+      } catch (e) {
+        logger.warn("coord", `REFRESH_PROBLEM_META exception:`, e);
+      }
+    }
+  }
   if (!problemMeta) {
     const slug = (session && session.slug) || (problemKey && problemKey.startsWith("lc:") ? problemKey.slice(3) : problemKey);
     problemMeta = {
@@ -170,7 +196,11 @@ export async function generateNoteFor(problemKey) {
       key: problemKey,
       partial: true,
     };
-    logger.warn("coord", `problem meta missing for ${problemKey}, using fallback skeleton; GQL may have failed. agent chain continues with partial data.`);
+    logger.warn("coord", `problem meta still missing for ${problemKey}, using fallback skeleton. agent chain continues with partial data.`);
+  } else if (problemMeta.partial) {
+    logger.warn("coord", `problem meta is partial for ${problemKey} (problemId=${problemMeta.problemId}), GQL full meta may not have arrived yet`);
+  } else {
+    logger.info("coord", `problem meta OK for ${problemKey}: id=${problemMeta.problemId} title=${problemMeta.title} difficulty=${problemMeta.difficulty}`);
   }
 
   const settings = await getSettings();
@@ -183,6 +213,7 @@ export async function generateNoteFor(problemKey) {
   note.solving.languagesUsed = session.languagesUsed || [];
 
   const acceptedAttempt = [...(session.attempts || [])].reverse().find((a) => /accepted/i.test(a.status));
+  logger.info("coord", `acceptedAttempt found: ${!!acceptedAttempt}` + (acceptedAttempt ? ` | lang=${acceptedAttempt.lang || "(empty)"} | codeLen=${(acceptedAttempt.code || "").length} | runtime=${acceptedAttempt.runtime ?? "?"}` : ` | attempts statuses=${(session.attempts || []).map(a => a.status).join(",")}`));
   if (acceptedAttempt) {
     note.code.language = acceptedAttempt.lang || "";
     note.code.solution = acceptedAttempt.code || "";

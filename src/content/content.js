@@ -70,6 +70,24 @@
     if (LCC.timerTracker) LCC.timerTracker.start();
     // 5. 提交监听(DOM 兜底)
     if (LCC.submissionWatcher) LCC.submissionWatcher.start();
+    // 6. 监听 background 下发的指令(如 REFRESH_PROBLEM_META)
+    chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+      if (!msg || !msg.type) return;
+      if (msg.type === "REFRESH_PROBLEM_META") {
+        const slug = (msg.payload && msg.payload.slug) || LCC.state.currentSlug;
+        if (slug && LCC.leetcodeApi && LCC.leetcodeApi.fetchQuestion) {
+          LCC.leetcodeApi.fetchQuestion(slug).then((problem) => {
+            if (problem) LCC.bg("PROBLEM_META", { slug, problem });
+            sendResponse({ ok: true, problem });
+          }).catch((e) => {
+            LCC.utils.log("warn", "content", "REFRESH_PROBLEM_META failed", e);
+            sendResponse({ ok: false, error: String(e) });
+          });
+          return true; // 异步响应
+        }
+        sendResponse({ ok: false, error: "no slug or leetcodeApi" });
+      }
+    });
   };
 
   // —— 来自 page context 的消息(主要是 fetch 拦截结果) ——

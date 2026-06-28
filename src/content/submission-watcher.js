@@ -12,20 +12,17 @@
   // 已上报的 submission 结果去重(同一次提交 result 响应 + DOM 可能都触发)
   let lastReportedKey = null;
 
-  function reportResult({ status, statusMsg, runtime, memory, code, lang, langSlug, submissionId }) {
+  function reportResult({ status, statusMsg, runtime, memory, code, lang, langSlug, submissionId, fromDOM }) {
     const slug = LCC.state.currentSlug;
     const problemKey = LCC.state.currentProblemKey;
     if (!slug || !problemKey) {
       LCC.utils.log("warn", "submit", "reportResult bailed: slug not set (detector 未识别题目). url=", location.href, "slug=", slug);
       return;
     }
-    LCC.utils.log("info", "submit", "reportResult:", status, "| slug=", slug, "| accepted=", /accepted|解答成功|通过/i.test(status + " " + (statusMsg || "")));
-    const key = `${problemKey}:${submissionId || ""}:${status}:${Date.now().toString().slice(0, -3)}`;
-    // 同秒内同状态去重
-    if (lastReportedKey && lastReportedKey.startsWith(`${problemKey}:${submissionId || ""}:${status}:`)) {
-      // 允许覆盖以补充 code/lang
-    }
-    lastReportedKey = key;
+    // 合并 pendingSubmit 中的 code/lang(如果当前 report 缺失)
+    const mergedCode = code || (pendingSubmit && pendingSubmit.code) || "";
+    const mergedLang = lang || langSlug || (pendingSubmit && pendingSubmit.lang) || "";
+    LCC.utils.log("info", "submit", "reportResult:", status, "| slug=", slug, "| fromDOM=", !!fromDOM, "| hasCode=", !!mergedCode, "| hasLang=", !!mergedLang, "| pendingSubmit=", !!pendingSubmit, "| accepted=", /accepted|解答成功|通过/i.test(status + " " + (statusMsg || "")));
 
     const isAccepted = /accepted|解答成功|通过/i.test(status + " " + (statusMsg || ""));
     LCC.bg("SUBMISSION_RESULT", {
@@ -35,13 +32,17 @@
       statusMsg: statusMsg || status,
       runtime,
       memory,
-      code: code || (pendingSubmit && pendingSubmit.code) || "",
-      lang: lang || langSlug || (pendingSubmit && pendingSubmit.lang) || "",
+      code: mergedCode,
+      lang: mergedLang,
       submissionId: submissionId || null,
       accepted: isAccepted,
       ts: Date.now(),
     });
-    pendingSubmit = null;
+    // 只在拿到完整数据(page-hook 路径,有 submissionId 或 runtime)时才清 pendingSubmit,
+    // DOM 兜底报告不清,留给后续 page-hook 补充 code/lang
+    if (!fromDOM) {
+      pendingSubmit = null;
+    }
   }
 
   // —— page-hook 回调 ——
@@ -115,10 +116,10 @@
       if (!node) return;
       const text = node.textContent || "";
       if (ACCEPT_RE.test(text)) {
-        reportResult({ status: "Accepted", statusMsg: "Accepted (dom)" });
+        reportResult({ status: "Accepted", statusMsg: "Accepted (dom)", fromDOM: true });
       } else if (WA_RE.test(text)) {
         // 解析可能的细节(runtime/memory 通常 DOM 不全,留给 page-hook 补充)
-        reportResult({ status: "Wrong Answer", statusMsg: text.slice(0, 120) });
+        reportResult({ status: "Wrong Answer", statusMsg: text.slice(0, 120), fromDOM: true });
       }
     });
     mo.observe(document.body, { childList: true, subtree: true, characterData: true });

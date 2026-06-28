@@ -43,6 +43,11 @@
       if (init && init.body) reqBody = init.body;
     } catch (_) {}
 
+    // 诊断:打印所有包含 submit 的 URL,定位 LeetCode CN 提交接口
+    if (url && /submit/i.test(url)) {
+      console.log("[LCC:info][page-hook] fetch URL contains 'submit':", url, "hasBody=", !!reqBody);
+    }
+
     const p = _fetch.apply(this, arguments);
     // 拦截提交请求体
     maybeCaptureSubmitRequest(url, reqBody);
@@ -98,22 +103,39 @@
     if (u.includes("/graphql")) {
       payload = parseBody(body);
       const op = payload && (payload.operationName || (payload.query && /mutation\s+\w*submit/i.test(payload.query)));
-      if (payload && (op === "submit" || op === "submitSolution" || (payload.query && /submitSolution|submit/i.test(payload.query)))) {
+      // 放宽匹配:任何 query/mutation 含 submit 字样都视为提交
+      if (payload && (op === "submit" || op === "submitSolution" || op === "submission" ||
+          (payload.query && /submitSolution|submit|submission/i.test(payload.query)))) {
         isSubmit = true;
+      }
+      // 诊断:打印所有 GraphQL operationName
+      if (payload && payload.operationName) {
+        console.log("[LCC:debug][page-hook] graphql op:", payload.operationName);
       }
     } else if (u.includes("/problems/") && u.includes("/submit")) {
       isSubmit = true;
       payload = parseBody(body);
     }
 
-    if (!isSubmit || !payload) return;
+    if (!isSubmit) return;
+    console.log("[LCC:info][page-hook] submit request detected, url=", url, "payload keys=", payload ? Object.keys(payload) : "null");
+
+    if (!payload) return;
 
     const vars = payload.variables || payload;
-    const typedCode = vars.typedCode || vars.typed_code || vars.code || (vars.data && vars.data.typed_code) || "";
-    const lang = vars.lang || vars.langSlug || (vars.data && vars.data.lang) || "";
-    const questionId = vars.questionId || vars.question_id || (vars.data && vars.data.question_id) || "";
+    // 放宽字段名匹配,兼容 LeetCode CN 不同版本
+    const typedCode = vars.typedCode || vars.typed_code || vars.code ||
+      (vars.data && (vars.data.typedCode || vars.data.typed_code || vars.data.code)) || "";
+    const lang = vars.lang || vars.langSlug || vars.language ||
+      (vars.data && (vars.data.lang || vars.data.langSlug || vars.data.language)) || "";
+    const questionId = vars.questionId || vars.question_id ||
+      (vars.data && (vars.data.questionId || vars.data.question_id)) || "";
+    console.log("[LCC:info][page-hook] submit payload: typedCode.len=", typedCode.length, "lang=", lang, "questionId=", questionId);
     if (typedCode || lang) {
       post("SUBMIT_REQUEST", { typedCode, lang, questionId, url });
+    } else {
+      // 诊断:提交被识别但没拿到 code/lang,打印完整 variables 结构
+      console.log("[LCC:warn][page-hook] submit detected but no typedCode/lang. vars keys=", vars ? Object.keys(vars) : "null", "vars=", JSON.stringify(vars).slice(0, 500));
     }
   }
 
