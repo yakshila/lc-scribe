@@ -40,7 +40,7 @@
         difficulty
         isPaidOnly
         topicTags { name translatedName slug }
-        hints { content }
+        hints
         sampleTestCase
       }
     }`;
@@ -59,7 +59,7 @@
         tags: (q.topicTags || []).map((t) => t.translatedName || t.name),
         isPaid: !!q.isPaidOnly,
         content: q.content || "", // 题目正文(HTML),供 AI 生成笔记用
-        hints: (q.hints || []).map((h) => h.content).filter(Boolean),
+        hints: Array.isArray(q.hints) ? q.hints.filter(Boolean) : [],
         sampleTestCase: q.sampleTestCase || "",
         url: `https://leetcode.cn/problems/${q.titleSlug}/`,
         related: [],

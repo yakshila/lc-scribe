@@ -109,6 +109,7 @@ async function onSubmissionResult(payload, sender) {
   logger.info("coord", `submission: ${slug} -> ${status}${becameAccepted ? " (NEW AC)" : ""}`);
 
   if (becameAccepted) {
+    logger.info("coord", `AC detected for ${problemKey}, triggering onAccepted`);
     onAccepted(problemKey, session).catch((e) => logger.error("coord", "onAccepted", e));
   }
   return { ok: true, accepted: becameAccepted };
@@ -193,6 +194,7 @@ export async function generateNoteFor(problemKey) {
 
   const registry = getAgentRegistry();
   const enabled = settings.agents.enabled || [];
+  logger.info("coord", `generateNoteFor: agents.enabled=${JSON.stringify(enabled)} llm.enabled=${settings.llm && settings.llm.enabled} autoGenerate=${settings.notes && settings.notes.autoGenerate}`);
 
   if (enabled.includes("code-analysis")) {
     try {
