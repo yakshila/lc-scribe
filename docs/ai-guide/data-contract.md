@@ -1,0 +1,83 @@
+# 数据契约(第 4-5 章)
+
+> 返回 [索引](../../AI_GUIDE.md)。本文件覆盖存储分区、Note 结构、消息 API。
+
+## 目录
+
+4. [存储分区与核心数据契约](#4-存储分区与核心数据契约)
+5. [消息 API 总表](#5-消息-api-总表)
+
+---
+
+## 4. 存储分区与核心数据契约
+
+### 4.1 存储分区(`chrome.storage.local`)
+
+| key | 结构 | 说明 |
+|---|---|---|
+| `settings` | `Settings` | 全局配置(LLM/通知/复习/agent/uploader) |
+| `notes` | `{ [noteId]: Note }` | 笔记,按 id 索引 |
+| `problems` | `{ [problemKey]: ProblemMeta }` | 题目元数据缓存 |
+| `sessions` | `{ [problemKey]: SessionState }` | 做题会话(计时/尝试) |
+| `reviews` | `{ [noteId]: ReviewState }` | 复习调度状态 |
+| `stats` | `Stats` | 聚合统计 |
+
+依据:[store.js](../../src/storage/store.js) 顶部注释 + 各 CRUD 函数。
+
+### 4.2 Note 结构(7 层,客观/主观/AI 增量分离)
+
+| 字段 | 含义 | 来源 |
+|---|---|---|
+| `meta` | 题号/slug/标题/难度/标签/url | LeetCode 客观 |
+| `solving` | 开始/AC 时刻、用时、提交次数、一次 AC、语言、`timeline[]`(运行+提交轨迹) | 插件采集 |
+| `approach` | 直觉/解法/算法/数据结构/复杂度 | 用户可编辑,Agent 辅助 |
+| `code` | 语言/AC 代码/`keyLines[]`(关键行标注) | Agent 标注 |
+| `insights` | `pitfalls[]`(深度分析:现象/根因/错代码/修法/规律)/收获/模式/相关题 | Agent 辅助提炼 |
+| `review` | SM-2:间隔/ease/repetitions/下次复习/历史 | 调度状态 |
+| `aiGenerated` | 总结/其他解法/常见错误/面试建议 | AI 增量,与用户字段分离 |
+
+- `problemKey` 形如 `lc:<slug>`(见 [utils.js](../../src/utils.js) `problemKey`)。
+- 笔记 `id` 由 `generateId("note")` 生成(`note_<base36时间>_<随机>`)。
+- 依据:[schema.js](../../src/storage/schema.js) `NOTE_FIELDS`、[store.js](../../src/storage/store.js) `newNoteSkeleton`。
+
+---
+
+## 5. 消息 API 总表
+
+所有消息走 `chrome.runtime.sendMessage({ type, payload })`,由 [coordinator.js](../../src/background/coordinator.js) `handleMessage` 路由,响应统一为 `{ ok, data }` 或 `{ ok:false, error }`。
+
+**Content → Background**:
+
+| type | 方向 | 说明 |
+|---|---|---|
+| `PROBLEM_ENTERED` | content→bg | 进入题目,建/恢复 session |
+| `PROBLEM_META` | content→bg | 异步补全题目元数据 |
+| `SUBMISSION_RESULT` | content→bg | 提交/运行结果(含代码/语言/状态/runtime/memory) |
+| `TIMER_TICK` / `TIMER_FINAL` | content→bg | 上报有效用时 |
+| `TOAST_BUTTON` | content→bg | 页内 toast 按钮回调(如 generate-note) |
+
+**Background → Content**(由 coordinator 下发):
+
+| type | 说明 |
+|---|---|
+| `TIMER_START` / `TIMER_STOP` / `TIMER_PAUSE` / `TIMER_RESUME` | 计时控制 |
+| `REFRESH_PROBLEM_META` | 请求 content 重新拉 GQL 元数据 |
+| `SHOW_TOAST` | 系统通知失败时,页内 toast 兜底 |
+
+**UI(popup/options/notes)→ Background**:
+
+| type | 说明 |
+|---|---|
+| `GET_STATUS` | 状态汇总(LLM/统计/当前 session) |
+| `GET_NOTES` / `GET_NOTE` | 列表 / 单条 |
+| `GET_DUE_REVIEWS` | 到期复习 |
+| `GET_SETTINGS` / `SAVE_SETTINGS` | 配置读写 |
+| `GET_STATS` | 统计 |
+| `GENERATE_NOTE` | 触发笔记生成(`payload.problemKey`) |
+| `REVIEW_GRADE` | 复习评分(`noteId`, `grade`) |
+| `DELETE_NOTE` | 删除笔记 |
+| `UPLOAD_NOTE` | 上传(`noteId`, `uploader`) |
+| `GET_NOTE_MARKDOWN` | 取笔记 Markdown |
+| `TRIGGER_REVIEW_CHECK` | 触发每日复习检查 |
+
+依据:[coordinator.js](../../src/background/coordinator.js) `handleMessage`、[content.js](../../src/content/content.js) `onMessage` 监听。
