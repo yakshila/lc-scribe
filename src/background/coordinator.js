@@ -5,7 +5,7 @@ import {
   getSettings, saveSettings,
   getSession, saveSession, deleteSession,
   getProblem, saveProblem,
-  getNote, listNotes, saveNote, deleteNote,
+  getNote, listNotes, saveNote, deleteNote, findNoteByProblemKey,
   getReview, saveReview, listReviews,
   getStats, bumpStats,
   newNoteSkeleton,
@@ -230,7 +230,18 @@ export async function generateNoteFor(problemKey) {
   }
 
   const settings = await getSettings();
+
+  // 同题覆盖:若该题已有笔记,复用其 id,使 saveNote 覆盖旧笔记而非新增。
+  // 同时保留旧笔记的 createdAt 与 review 调度状态,
+  // 避免重新生成笔记导致复习进度(SM-2 interval/ease/repetitions)丢失。
+  const existing = await findNoteByProblemKey(problemKey);
   const note = newNoteSkeleton(problemMeta);
+  if (existing) {
+    note.id = existing.id;
+    note.createdAt = existing.createdAt;
+    if (existing.review) note.review = existing.review;
+    logger.info("coord", `overwrite existing note ${existing.id} for ${problemKey}`);
+  }
   note.solving.startedAt = session.startedAt;
   note.solving.acceptedAt = session.acceptedAt;
   note.solving.durationSec = session.durationSec || 0;
@@ -300,8 +311,11 @@ export async function generateNoteFor(problemKey) {
 
   await saveNote(note);
   if (note.review) await saveReview(note.id, note.review);
-  const s = await getStats();
-  await bumpStats({ totalNotes: (s.totalNotes || 0) + 1 });
+  // 仅在新笔记(非覆盖)时累加 totalNotes,避免同题重新生成导致计数虚高。
+  if (!existing) {
+    const s = await getStats();
+    await bumpStats({ totalNotes: (s.totalNotes || 0) + 1 });
+  }
 
   await maybeAutoUpload(note);
 

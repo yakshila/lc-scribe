@@ -83,6 +83,19 @@ export async function listNotes() {
   return notes ? Object.values(notes) : [];
 }
 
+/**
+ * 按 problemKey 查找已有笔记(同题覆盖用)。
+ * problemKey 形如 "lc:<slug>",这里用 meta.titleSlug 匹配 slug。
+ * 同一题多次生成笔记时,复用旧笔记 id,使 saveNote 覆盖而非新增。
+ */
+export async function findNoteByProblemKey(problemKey) {
+  if (!problemKey) return null;
+  const slug = problemKey.startsWith("lc:") ? problemKey.slice(3) : problemKey;
+  const { notes } = await chrome.storage.local.get("notes");
+  if (!notes) return null;
+  return Object.values(notes).find((n) => n && n.meta && n.meta.titleSlug === slug) || null;
+}
+
 export async function saveNote(note) {
   const { notes } = await chrome.storage.local.get("notes");
   const map = notes || {};
