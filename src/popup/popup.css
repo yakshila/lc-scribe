@@ -53,9 +53,15 @@ button.primary:hover { background: var(--accent-2); }
 button.ghost { background: transparent; }
 button:disabled { opacity: .5; cursor: default; }
 
-.stats { display: flex; justify-content: space-around; text-align: center; }
+.stats { display: flex; justify-content: space-around; text-align: center; position: relative; }
 .stat .num { font-size: 20px; font-weight: 700; color: var(--accent); }
 .stat .lbl { font-size: 11px; color: var(--muted); }
+.reset-btn {
+  position: absolute; top: 6px; right: 8px;
+  font-size: 10px; color: var(--muted);
+  background: transparent; border: none; padding: 2px 6px;
+}
+.reset-btn:hover { color: var(--red); background: transparent; }
 
 .links { padding: 4px 8px; }
 .link {

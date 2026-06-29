@@ -5,9 +5,9 @@ import {
   getSettings, saveSettings,
   getSession, saveSession, deleteSession,
   getProblem, saveProblem,
-  getNote, listNotes, saveNote, deleteNote, findNoteByProblemKey,
+  getNote, listNotes, saveNote, deleteNote, deleteNotes, findNoteByProblemKey,
   getReview, saveReview, listReviews,
-  getStats, bumpStats,
+  getStats, bumpStats, markAccepted, clearStats,
   newNoteSkeleton,
 } from "../storage/store.js";
 import { noteToMarkdown } from "../storage/schema.js";
@@ -130,12 +130,8 @@ async function onSubmissionResult(payload, sender) {
 
 async function onAccepted(problemKey, session) {
   const settings = await getSettings();
-  // 统计
-  const stats = await getStats();
-  await bumpStats({
-    totalAccepted: (stats.totalAccepted || 0) + 1,
-    lastActiveDate: new Date().toISOString().slice(0, 10),
-  });
+  // 统计:按 problemKey 去重记录 AC(markAccepted 幂等,同题多次 AC 只算一次)
+  await markAccepted(problemKey);
 
   if (settings.notifications.onAccepted) {
     const result = await notify({
@@ -323,11 +319,8 @@ export async function generateNoteFor(problemKey) {
 
   await saveNote(note);
   if (note.review) await saveReview(note.id, note.review);
-  // 仅在新笔记(非覆盖)时累加 totalNotes,避免同题重新生成导致计数虚高。
-  if (!existing) {
-    const s = await getStats();
-    await bumpStats({ totalNotes: (s.totalNotes || 0) + 1 });
-  }
+  // totalNotes 为派生值(= notes 实际数量),无需手动维护;
+  // 同题覆盖时 notes 数量不变,新增时自动 +1,删除时自动 -1。
 
   await maybeAutoUpload(note);
 
@@ -479,14 +472,36 @@ export async function handleMessage(msg, sender) {
       return next;
     }
     case "GET_STATS": return await getStats();
+    case "CLEAR_STATS": return await clearStats();
     case "GENERATE_NOTE": return await generateNoteFor(payload.problemKey);
     case "REVIEW_GRADE": return await reviewNote(payload.noteId, payload.grade);
     case "DELETE_NOTE": await deleteNote(payload.noteId); return { ok: true };
+    case "DELETE_NOTES": {
+      // 批量删除笔记(含对应 review)。payload.noteIds: string[]
+      const removed = await deleteNotes(payload.noteIds || []);
+      return { removed, count: removed.length };
+    }
     case "UPLOAD_NOTE": {
       const note = await getNote(payload.noteId);
       if (!note) return { ok: false, error: "note not found" };
       const reg = getUploaderRegistry();
       return await reg.upload(payload.uploader, note, { settings: await getSettings() });
+    }
+    case "BATCH_UPLOAD": {
+      // 批量上传。payload: { noteIds: string[], uploader: string }
+      const ids = payload.noteIds || [];
+      const uploader = payload.uploader;
+      const reg = getUploaderRegistry();
+      const settings = await getSettings();
+      const results = [];
+      for (const id of ids) {
+        const note = await getNote(id);
+        if (!note) { results.push({ id, success: false, message: "note not found" }); continue; }
+        const r = await reg.upload(uploader, note, { settings });
+        results.push({ id, ...r });
+      }
+      const ok = results.filter((r) => r.success).length;
+      return { results, total: ids.length, success: ok, failed: ids.length - ok };
     }
     case "GET_NOTE_MARKDOWN": {
       const note = await getNote(payload.noteId);

@@ -20,11 +20,24 @@
 | `problems` | `{ [problemKey]: ProblemMeta }` | 题目元数据缓存 |
 | `sessions` | `{ [problemKey]: SessionState }` | 做题会话(计时/尝试) |
 | `reviews` | `{ [noteId]: ReviewState }` | 复习调度状态 |
-| `stats` | `Stats` | 聚合统计 |
+| `stats` | `Stats` | 聚合统计(部分派生,见 4.1.2) |
 
-依据:[store.js](../../src/storage/store.js) 顶部注释 + 各 CRUD 函数。
+### 4.1.2 `stats` 字段(部分派生)
 
-### 4.1.1 `settings.notes` 字段
+| 字段 | 类型 | 来源 | 说明 |
+|---|---|---|---|
+| `acceptedProblems` | `{ [problemKey]: ISO时间 }` | 存储 | 已 AC 题目集合(按 problemKey 去重) |
+| `totalAccepted` | number | **派生** | `= Object.keys(acceptedProblems).length`,同题多次 AC 只算一次 |
+| `totalNotes` | number | **派生** | `= notes 实际数量`,删笔记即同步,无需手动维护 |
+| `totalReviewsDone` | number | 累加存储 | 完成的复习次数 |
+| `streakDays` | number | 累加存储 | 连续刷题天数 |
+| `lastActiveDate` | `YYYY-MM-DD` | 存储 | 最近活跃日期 |
+
+> 派生字段由 `getStats()` 实时计算,`bumpStats` 会忽略对 `totalAccepted`/`totalNotes` 的覆盖。AC 记录用 `markAccepted(problemKey)`(幂等),清空用 `clearStats()`。
+
+依据:[store.js](../../src/storage/store.js) `getStats` / `markAccepted` / `clearStats` / `bumpStats`。
+
+### 4.1.3 `settings.notes` 字段
 
 | 字段 | 默认 | 说明 |
 |---|---|---|
@@ -84,10 +97,13 @@
 | `GET_DUE_REVIEWS` | 到期复习 |
 | `GET_SETTINGS` / `SAVE_SETTINGS` | 配置读写 |
 | `GET_STATS` | 统计 |
+| `CLEAR_STATS` | 清空 AC/复习计数(`acceptedProblems`、`totalReviewsDone`、`streakDays`);笔记不删,`totalNotes` 因派生保留 |
 | `GENERATE_NOTE` | 触发笔记生成(`payload.problemKey`) |
 | `REVIEW_GRADE` | 复习评分(`noteId`, `grade`) |
 | `DELETE_NOTE` | 删除笔记 |
+| `DELETE_NOTES` | 批量删除笔记(`noteIds: string[]`),返回 `{ removed, count }` |
 | `UPLOAD_NOTE` | 上传(`noteId`, `uploader`) |
+| `BATCH_UPLOAD` | 批量上传(`noteIds: string[]`, `uploader`),返回 `{ results, total, success, failed }` |
 | `GET_NOTE_MARKDOWN` | 取笔记 Markdown |
 | `TRIGGER_REVIEW_CHECK` | 触发每日复习检查 |
 

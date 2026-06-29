@@ -120,6 +120,27 @@ export async function deleteNote(noteId) {
   }
 }
 
+/** 批量删除笔记(含对应 review)。返回被实际删除的 noteId 数组。 */
+export async function deleteNotes(noteIds) {
+  if (!Array.isArray(noteIds) || noteIds.length === 0) return [];
+  const { notes, reviews } = await chrome.storage.local.get(["notes", "reviews"]);
+  const removed = [];
+  if (notes) {
+    for (const id of noteIds) {
+      if (notes[id]) { delete notes[id]; removed.push(id); }
+    }
+    await chrome.storage.local.set({ notes });
+  }
+  if (reviews) {
+    let changed = false;
+    for (const id of noteIds) {
+      if (reviews[id]) { delete reviews[id]; changed = true; }
+    }
+    if (changed) await chrome.storage.local.set({ reviews });
+  }
+  return removed;
+}
+
 // —— 题目元数据缓存 ——
 
 export async function getProblem(problemKey) {
@@ -179,17 +200,58 @@ export async function listReviews() {
 }
 
 // —— 统计 ——
+// totalAccepted 与 totalNotes 为派生值,永远与真实数据一致:
+//   totalAccepted = acceptedProblems 集合大小(按 problemKey 去重,同题多次 AC 只算一次)
+//   totalNotes    = notes 实际数量(删笔记即同步,无需手动维护)
+// 仅 totalReviewsDone / streakDays / lastActiveDate 为累加存储。
 
 export async function getStats() {
-  const { stats } = await chrome.storage.local.get("stats");
-  return stats || { totalAccepted: 0, totalNotes: 0, totalReviewsDone: 0, streakDays: 0, lastActiveDate: null };
+  const { stats, notes } = await chrome.storage.local.get(["stats", "notes"]);
+  const base = stats || {};
+  const acceptedProblems = base.acceptedProblems || {};
+  return {
+    acceptedProblems,
+    totalAccepted: Object.keys(acceptedProblems).length, // 派生:按题去重
+    totalNotes: notes ? Object.keys(notes).length : 0,    // 派生:真实笔记数
+    totalReviewsDone: base.totalReviewsDone || 0,
+    streakDays: base.streakDays || 0,
+    lastActiveDate: base.lastActiveDate || null,
+  };
 }
 
 export async function bumpStats(patch) {
   const cur = await getStats();
-  const next = { ...cur, ...patch };
+  // 派生字段不接受外部覆盖,始终由真实数据计算
+  const { totalAccepted, totalNotes, ...rest } = patch;
+  const base = await chrome.storage.local.get("stats").then((r) => r.stats || {});
+  const next = { ...base, ...rest };
   await chrome.storage.local.set({ stats: next });
-  return next;
+  return getStats();
+}
+
+/** 标记某题已 AC(按 problemKey 去重,重复标记幂等)。 */
+export async function markAccepted(problemKey) {
+  const base = await chrome.storage.local.get("stats").then((r) => r.stats || {});
+  const acceptedProblems = { ...(base.acceptedProblems || {}), [problemKey]: nowISO() };
+  await chrome.storage.local.set({
+    stats: { ...base, acceptedProblems, lastActiveDate: new Date().toISOString().slice(0, 10) },
+  });
+  return getStats();
+}
+
+/** 清空计数(AC 计数 + 复习计数 + 连续天数)。笔记本身不动,totalNotes 因派生而保留。 */
+export async function clearStats() {
+  const base = await chrome.storage.local.get("stats").then((r) => r.stats || {});
+  await chrome.storage.local.set({
+    stats: {
+      ...base,
+      acceptedProblems: {},
+      totalReviewsDone: 0,
+      streakDays: 0,
+      lastActiveDate: null,
+    },
+  });
+  return getStats();
 }
 
 // —— 工具 ——

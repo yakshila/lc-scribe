@@ -90,6 +90,17 @@ $("btnSettings").addEventListener("click", () => {
   chrome.runtime.openOptionsPage();
 });
 
+// 清空计数(AC 计数 + 复习计数 + 连续天数)。笔记不删,totalNotes 因派生保留。
+$("btnClearStats").addEventListener("click", async () => {
+  if (!confirm("清空 AC 计数 / 复习计数 / 连续天数?\n(笔记不会被删除,笔记数保留)")) return;
+  const s = await sendBg("CLEAR_STATS");
+  if (s) {
+    $("statAc").textContent = s.totalAccepted || 0;
+    $("statNotes").textContent = s.totalNotes || 0;
+    $("hint").textContent = "计数已清空";
+  }
+});
+
 refresh();
 // 每秒刷新计时
 setInterval(refresh, 1000);

@@ -22,6 +22,16 @@
     <section id="viewList" class="view">
       <div class="toolbar">
         <input type="search" id="searchBox" placeholder="搜索题号/标题/标签…" />
+        <button id="btnBatch" class="ghost" title="批量管理">批量管理</button>
+      </div>
+      <div id="batchBar" class="batch-bar hidden">
+        <label class="select-all"><input type="checkbox" id="chkAll" /> 全选</label>
+        <span class="batch-count" id="batchCount">已选 0</span>
+        <div class="batch-actions">
+          <button id="btnBatchExport" class="ghost">导出 Markdown</button>
+          <button id="btnBatchFeishu" class="ghost">上传飞书</button>
+          <button id="btnBatchDelete" class="ghost danger">删除</button>
+        </div>
       </div>
       <div id="noteList" class="note-list"></div>
     </section>

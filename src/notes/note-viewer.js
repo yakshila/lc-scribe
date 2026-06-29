@@ -5,6 +5,8 @@ import { formatDuration } from "../utils.js";
 const $ = (id) => document.getElementById(id);
 let currentNote = null;
 let allNotes = [];
+let batchMode = false;
+let selected = new Set(); // noteId 集合(批量管理用)
 
 async function sendBg(type, payload = {}) {
   return new Promise((resolve) => {
@@ -56,9 +58,12 @@ function renderList(filter = "") {
   for (const n of notes) {
     const m = n.meta || {};
     const card = document.createElement("div");
-    card.className = "note-card";
+    card.className = "note-card" + (selected.has(n.id) ? " selected" : "");
+    card.dataset.id = n.id;
     const due = n.review && n.review.nextReviewAt && new Date(n.review.nextReviewAt).getTime() <= Date.now();
+    const chk = batchMode ? `<input type="checkbox" class="batch-check" ${selected.has(n.id) ? "checked" : ""} />` : "";
     card.innerHTML = `
+      ${chk}
       <div class="left">
         <div class="title"><span class="pid">#${m.problemId}</span>${esc(m.title || m.titleSlug)}</div>
         <div class="tags">
@@ -71,12 +76,88 @@ function renderList(filter = "") {
         <div class="next" style="margin-top:2px">${esc((n.createdAt || "").slice(0, 10))}</div>
       </div>
     `;
-    card.addEventListener("click", () => openDetail(n.id));
+    if (batchMode) {
+      // 批量模式:点卡片或 checkbox 切换选中
+      card.addEventListener("click", (e) => {
+        if (e.target.classList.contains("batch-check")) return; // checkbox 自己处理
+        toggleSelect(n.id);
+      });
+      const cb = card.querySelector(".batch-check");
+      if (cb) cb.addEventListener("change", () => toggleSelect(n.id));
+    } else {
+      card.addEventListener("click", () => openDetail(n.id));
+    }
     box.appendChild(card);
   }
 }
 
+function toggleSelect(id) {
+  if (selected.has(id)) selected.delete(id);
+  else selected.add(id);
+  updateBatchUI();
+}
+
+function updateBatchUI() {
+  // 仅更新选中态/计数,避免整列表重渲染丢滚动
+  document.querySelectorAll(".note-card").forEach((c) => {
+    const id = c.dataset.id;
+    const on = selected.has(id);
+    c.classList.toggle("selected", on);
+    const cb = c.querySelector(".batch-check");
+    if (cb) cb.checked = on;
+  });
+  $("batchCount").textContent = `已选 ${selected.size}`;
+  $("chkAll").checked = allNotes.length > 0 && selected.size === allNotes.length;
+}
+
 $("searchBox").addEventListener("input", (e) => renderList(e.target.value));
+
+// —— 批量管理 ——
+$("btnBatch").addEventListener("click", () => {
+  batchMode = !batchMode;
+  $("btnBatch").textContent = batchMode ? "退出批量" : "批量管理";
+  $("btnBatch").classList.toggle("primary", batchMode);
+  $("batchBar").classList.toggle("hidden", !batchMode);
+  if (!batchMode) selected.clear();
+  renderList($("searchBox").value);
+  updateBatchUI();
+});
+
+$("chkAll").addEventListener("change", (e) => {
+  if (e.target.checked) allNotes.forEach((n) => selected.add(n.id));
+  else selected.clear();
+  updateBatchUI();
+});
+
+$("btnBatchDelete").addEventListener("click", async () => {
+  const ids = [...selected];
+  if (ids.length === 0) return;
+  if (!confirm(`确定删除选中的 ${ids.length} 篇笔记?此操作不可撤销。`)) return;
+  const r = await sendBg("DELETE_NOTES", { noteIds: ids });
+  selected.clear();
+  await loadNotes();
+  alert(`已删除 ${r && r.count ? r.count : 0} 篇笔记。`);
+});
+
+$("btnBatchExport").addEventListener("click", async () => {
+  const ids = [...selected];
+  if (ids.length === 0) return;
+  // 逐篇触发 Markdown 下载(markdown uploader 走 chrome.downloads)
+  let ok = 0;
+  for (const id of ids) {
+    const r = await sendBg("UPLOAD_NOTE", { noteId: id, uploader: "markdown" });
+    if (r && r.success) ok++;
+  }
+  alert(`导出完成:成功 ${ok}/${ids.length}。`);
+});
+
+$("btnBatchFeishu").addEventListener("click", async () => {
+  const ids = [...selected];
+  if (ids.length === 0) return;
+  if (!confirm(`将选中的 ${ids.length} 篇笔记上传到飞书,继续?`)) return;
+  const r = await sendBg("BATCH_UPLOAD", { noteIds: ids, uploader: "feishu" });
+  if (r) alert(`上传完成:成功 ${r.success}/${r.total}${r.failed ? `,失败 ${r.failed}` : ""}。`);
+});
 
 // —— 复习 ——
 async function renderReview() {
