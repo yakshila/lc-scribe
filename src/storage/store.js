@@ -336,6 +336,7 @@ export function newNoteSkeleton(problem) {
       alternativeApproaches: [],
       commonMistakes: [],
       interviewTips: "",
+      explanation: null, // 最优方案通俗讲解,由 GENERATE_EXPLANATION 触发生成
     },
     createdAt: nowISO(),
     updatedAt: nowISO(),

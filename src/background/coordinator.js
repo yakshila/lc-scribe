@@ -18,6 +18,8 @@ import {
 } from "./alarm-manager.js";
 import { getAgentRegistry } from "../agents/agent-registry.js";
 import { getUploaderRegistry } from "../uploaders/uploader-registry.js";
+import { chatComplete } from "../llm/llm-client.js";
+import { buildExplanationPrompt, parseExplanationResult } from "../llm/prompts.js";
 
 // 内存:problemKey -> { tabId, slug },用于向对应 tab 下发指令。SW 重启会丢失,可接受。
 const tabMap = new Map(); // problemKey -> tabId
@@ -328,6 +330,45 @@ export async function generateNoteFor(problemKey) {
   return note;
 }
 
+// ============ AI 解答生成 ============
+// 基于题目元数据(不依赖用户做题过程),调 LLM 产出通俗易懂的「最优方案」讲解。
+// 结果存入 note.aiGenerated.explanation。可由复习通知按钮或详情页按钮触发。
+export async function generateExplanationFor(noteId) {
+  const note = await getNote(noteId);
+  if (!note) throw new Error(`note not found: ${noteId}`);
+
+  const settings = await getSettings();
+  if (!settings.llm || !settings.llm.enabled) {
+    throw new Error("LLM 未启用,请在设置中配置模型");
+  }
+
+  const slug = note.meta && note.meta.titleSlug;
+  const problemKey = slug ? `lc:${slug}` : null;
+  const problem = problemKey ? await getProblem(problemKey) : null;
+
+  const ctx = { note, problem, settings };
+  const { system, user } = buildExplanationPrompt(ctx);
+
+  logger.info("coord", `generateExplanationFor: note=${noteId} slug=${slug || "?"} model=${settings.llm.model || "?"}`);
+
+  const text = await chatComplete(settings.llm, [
+    { role: "system", content: system },
+    { role: "user", content: user },
+  ], { responseFormatJSON: true });
+
+  const parsed = parseExplanationResult(text);
+  if (!parsed || !parsed.explanation) {
+    throw new Error("AI 解答解析失败");
+  }
+
+  note.aiGenerated = note.aiGenerated || {};
+  note.aiGenerated.explanation = parsed.explanation;
+  await saveNote(note);
+
+  logger.info("coord", `explanation generated for ${noteId} (${slug || "?"})`);
+  return note;
+}
+
 async function maybeAutoUpload(note) {
   const settings = await getSettings();
   const reg = getUploaderRegistry();
@@ -376,9 +417,28 @@ async function runDailyReviewCheck() {
   const max = settings.review.maxDuePerDay || 5;
   await notify({
     title: "今日复习提醒",
-    message: `有 ${due.length} 道题到期复习${due.length > max ? `(建议先做 ${max} 道)` : ""}。点击查看。`,
+    message: `有 ${due.length} 道题到期复习${due.length > max ? `(建议先做 ${max} 道)` : ""}。点击查看,或用 AI 解答辅助复习。`,
+    buttons: [
+      { title: "生成 AI 解答", action: "generate-explanation" },
+      { title: "稍后", action: "later" },
+    ],
     onClick: () => {
       chrome.tabs.create({ url: chrome.runtime.getURL("src/notes/note-viewer.html?tab=review") });
+    },
+    onButton: (action) => {
+      if (action === "generate-explanation") {
+        // 为到期复习题逐道生成「最优方案」AI 解答,限制在 maxDuePerDay 内控制 LLM 调用量。
+        // 并发触发(不串行等待),每道独立 catch,失败不影响其他题。
+        const target = due.slice(0, max);
+        logger.info("coord", `generate explanations for ${target.length} due notes (from review notif)`);
+        target.forEach(({ note }) => {
+          if (note && note.id) {
+            generateExplanationFor(note.id).catch((e) => logger.error("coord", `gen-explanation for ${note.id} failed`, e));
+          }
+        });
+        // 同时打开复习页,让用户看到生成进度与结果
+        chrome.tabs.create({ url: chrome.runtime.getURL("src/notes/note-viewer.html?tab=review") });
+      }
     },
   });
 }
@@ -474,6 +534,7 @@ export async function handleMessage(msg, sender) {
     case "GET_STATS": return await getStats();
     case "CLEAR_STATS": return await clearStats();
     case "GENERATE_NOTE": return await generateNoteFor(payload.problemKey);
+    case "GENERATE_EXPLANATION": return await generateExplanationFor(payload.noteId);
     case "REVIEW_GRADE": return await reviewNote(payload.noteId, payload.grade);
     case "DELETE_NOTE": await deleteNote(payload.noteId); return { ok: true };
     case "DELETE_NOTES": {

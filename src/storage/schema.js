@@ -63,6 +63,7 @@ export const NOTE_FIELDS = {
     alternativeApproaches: "string[] 其他解法",
     commonMistakes: "string[] 常见错误",
     interviewTips: "string 面试建议",
+    explanation: "object|null 最优方案通俗讲解 {plainExplanation, analogy, keyInsight, commonPitfalls[], codeTemplate, optimalApproach:{name, idea, steps[], whyOptimal, complexity:{time, space}}}",
   },
 };
 
@@ -176,6 +177,41 @@ export function noteToMarkdown(note) {
     if (ai.commonMistakes?.length) { L.push("**常见错误**:"); ai.commonMistakes.forEach((x) => L.push(`- ${x}`)); }
     if (ai.interviewTips) L.push("", `**面试建议**: ${ai.interviewTips}`);
     L.push("");
+  }
+
+  // AI 最优方案讲解(通俗易懂版,复习时辅助理解)
+  if (ai && ai.explanation) {
+    const e = ai.explanation;
+    L.push("## 最优方案讲解");
+    if (e.plainExplanation) L.push(`**大白话**: ${e.plainExplanation}`, "");
+    if (e.analogy) L.push(`**类比**: ${e.analogy}`, "");
+    if (e.keyInsight) L.push(`**关键洞察**: ${e.keyInsight}`, "");
+    if (e.optimalApproach) {
+      const oa = e.optimalApproach;
+      L.push("### 最优解法");
+      if (oa.name) L.push(`- 名称: ${oa.name}`);
+      if (oa.idea) L.push(`- 思想: ${oa.idea}`);
+      if (oa.steps && oa.steps.length) {
+        L.push("**步骤**:");
+        oa.steps.forEach((s, i) => L.push(`${i + 1}. ${s}`));
+        L.push("");
+      }
+      if (oa.whyOptimal) L.push(`- 为什么最优: ${oa.whyOptimal}`);
+      if (oa.complexity) L.push(`- 复杂度: 时间 ${oa.complexity.time || "—"} / 空间 ${oa.complexity.space || "—"}`);
+      L.push("");
+    }
+    if (e.commonPitfalls && e.commonPitfalls.length) {
+      L.push("**常见坑**:");
+      e.commonPitfalls.forEach((p) => L.push(`- ${p}`));
+      L.push("");
+    }
+    if (e.codeTemplate) {
+      L.push("**代码骨架**:");
+      L.push("```" + langToFence(c.language));
+      L.push(e.codeTemplate);
+      L.push("```");
+      L.push("");
+    }
   }
 
   if (note.review) {

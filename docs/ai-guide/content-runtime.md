@@ -22,9 +22,10 @@
 
 ## 12. 通知与定时器
 
-- [notification-manager.js](../../src/background/notification-manager.js):`notify({id,title,message,buttons,onClick,onButton})`,按钮回调存 `pendingActions` Map,`installNotificationListeners` 绑定点击/按钮点击/关闭。`iconUrl` 用相对路径(注释说明不能用 `getURL`/data URI)。
+- [notification-manager.js](../../src/background/notification-manager.js):`notify({id,title,message,buttons,onClick,onButton,requireInteraction})`,按钮回调存 `pendingActions` Map,`installNotificationListeners` 绑定点击/按钮点击/关闭。`iconUrl` 用相对路径(注释说明不能用 `getURL`/data URI)。**带按钮的通知默认 `requireInteraction:true`**(常驻直到用户操作,避免按钮被自动消失吞掉)。
 - [alarm-manager.js](../../src/background/alarm-manager.js):
   - `setStuckAlarm(problemKey, minutes)` / `clearStuckAlarm`:卡壳提醒(`stuck:<problemKey>`)。
   - `ensureDailyReviewAlarm(hour)`:每日 `reviewCheckHour` 点触发,`periodInMinutes=24*60` 重复。
-  - `installAlarmListener(onStuck, onDailyReview)`。
+  - `installAlarmListener(onStuck, onDailyReview)`:`onAlarm` 监听器为 **async 并 await 回调**(MV3 SW 会等异步完成再休眠,避免 `notify()` 未完成就被杀导致通知不弹出)。
+- 每日复习通知(`runDailyReviewCheck`):带「生成 AI 解答」/「稍后」按钮。点「生成 AI 解答」对到期题(限 `maxDuePerDay`)并发触发 `generateExplanationFor` 并打开复习页;点主体只打开复习页。
 - 系统通知失败时,coordinator 用 `sendToastToActiveTab` 在 LeetCode 页内弹 toast 兜底(content.js `SHOW_TOAST`)。

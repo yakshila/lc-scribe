@@ -227,5 +227,90 @@ export function parseCodeAnalysisResult(text) {
   return { keyLines, comments };
 }
 
+// —— AI 解答生成:基于题目元数据,产出通俗易懂的最优方案讲解 ——
+// 不依赖用户做题过程,复习时直接给一份「讲明白这题」的解答。
+export function buildExplanationPrompt(ctx) {
+  const { note, problem, settings } = ctx;
+  const lang = settings && settings.notes && settings.notes.language === "en" ? "en" : "zh";
+  const outLang = lang === "en" ? "English" : "中文";
+
+  const problemDesc = [
+    `题号: ${note.meta.problemId}`,
+    `标题: ${note.meta.title}`,
+    `难度: ${note.meta.difficulty}`,
+    `标签: ${(note.meta.tags || []).join(", ")}`,
+  ].join("\n");
+
+  let problemStatement = "";
+  if (problem && problem.content) {
+    problemStatement = stripHtml(problem.content).slice(0, 4000);
+  }
+  const hints = (problem && problem.hints && problem.hints.length)
+    ? problem.hints.map((h) => "  - " + stripHtml(h).slice(0, 200)).join("\n")
+    : "";
+
+  const system = `你是一位耐心的算法老师,擅长把复杂的题讲得通俗易懂、像在给初学者讲课。
+请针对这道 LeetCode 题目,给出一份「最优方案」的完整讲解。
+
+要求:
+1. 用 ${outLang} 输出,语言通俗易懂、避免堆砌术语,关键概念要用大白话或类比解释。
+2. 必须给出「最优方案」(时间/空间复杂度最优的解法),并讲清楚为什么这是最优的。
+3. 只输出一个 JSON 对象,不要任何额外文字,不要 markdown 代码围栏。
+4. JSON 字段固定如下:
+{
+  "plainExplanation": "用大白话讲这题在问什么、关键思路是什么,像跟朋友聊天一样,2-4 句",
+  "optimalApproach": {
+    "name": "最优解法名称,如 '双指针'",
+    "idea": "核心思想,通俗解释为什么这么做能解",
+    "steps": ["分步讲解,每步都讲清楚在干嘛、为什么这步对"],
+    "whyOptimal": "为什么这是最优的(时间/空间复杂度,以及为什么没法更好)",
+    "complexity": { "time": "O(?)", "space": "O(?)" }
+  },
+  "analogy": "一个生活中的类比,帮初学者秒懂核心思路(如'就像两个人从数组两端往中间走')",
+  "keyInsight": "这题最关键的洞察,一句话点破(如'有序数组 → 双指针可以把 O(n²) 降到 O(n)')",
+  "commonPitfalls": ["做这题容易踩的坑,每个讲清为什么会错"],
+  "codeTemplate": "最优方案的伪代码或关键代码骨架(用题目语言,不用完整实现,给框架即可)"
+}`;
+
+  const user = `请为以下题目生成一份通俗易懂的最优方案讲解。
+
+【题目】
+${problemDesc}
+
+【题目正文】
+${problemStatement || "(未拿到题目正文)"}
+${hints ? "\n【官方提示】\n" + hints : ""}
+
+请输出 JSON。plainExplanation 和 analogy 要特别通俗,让没做过这题的人也能快速理解。`;
+
+  return { system, user };
+}
+
+/** 把 AI 解答 LLM 返回解析成 note.aiGenerated.explanation 片段 */
+export function parseExplanationResult(text) {
+  const obj = extractJSON(text);
+  if (!obj) return null;
+  const oa = obj.optimalApproach || {};
+  return {
+    explanation: {
+      plainExplanation: str(obj.plainExplanation),
+      analogy: str(obj.analogy),
+      keyInsight: str(obj.keyInsight),
+      commonPitfalls: arr(obj.commonPitfalls),
+      codeTemplate: str(obj.codeTemplate),
+      optimalApproach: {
+        name: str(oa.name),
+        idea: str(oa.idea),
+        steps: arr(oa.steps),
+        whyOptimal: str(oa.whyOptimal),
+        complexity: {
+          time: str(oa.complexity && oa.complexity.time),
+          space: str(oa.complexity && oa.complexity.space),
+        },
+      },
+    },
+  };
+}
+
 function str(v) { return v == null ? "" : String(v); }
 function arr(v) { return Array.isArray(v) ? v.map(String) : []; }

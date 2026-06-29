@@ -58,7 +58,7 @@
 | `code` | 语言/AC 代码/`keyLines[]`(关键行标注) | Agent 标注 |
 | `insights` | `pitfalls[]`(深度分析:现象/根因/错代码/修法/规律)/收获/模式/相关题 | Agent 辅助提炼 |
 | `review` | SM-2:间隔/ease/repetitions/下次复习/历史 | 调度状态 |
-| `aiGenerated` | 总结/其他解法/常见错误/面试建议 | AI 增量,与用户字段分离 |
+| `aiGenerated` | 总结/其他解法/常见错误/面试建议/`explanation`(最优方案通俗讲解) | AI 增量,与用户字段分离 |
 
 - `problemKey` 形如 `lc:<slug>`(见 [utils.js](../../src/utils.js) `problemKey`)。
 - 笔记 `id` 由 `generateId("note")` 生成(`note_<base36时间>_<随机>`)。
@@ -99,6 +99,7 @@
 | `GET_STATS` | 统计 |
 | `CLEAR_STATS` | 清空 AC/复习计数(`acceptedProblems`、`totalReviewsDone`、`streakDays`);笔记不删,`totalNotes` 因派生保留 |
 | `GENERATE_NOTE` | 触发笔记生成(`payload.problemKey`) |
+| `GENERATE_EXPLANATION` | 触发生成「最优方案」AI 解答(`payload.noteId`),结果存入 `note.aiGenerated.explanation`,返回更新后的 Note |
 | `REVIEW_GRADE` | 复习评分(`noteId`, `grade`) |
 | `DELETE_NOTE` | 删除笔记 |
 | `DELETE_NOTES` | 批量删除笔记(`noteIds: string[]`),返回 `{ removed, count }` |

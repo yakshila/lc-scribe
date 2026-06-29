@@ -33,13 +33,19 @@ export function ensureDailyReviewAlarm(hour) {
 }
 
 export function installAlarmListener(onStuck, onDailyReview) {
-  chrome.alarms.onAlarm.addListener((alarm) => {
+  // MV3: onAlarm 监听器返回 true 表示有异步操作,SW 会等异步完成再休眠,
+  // 否则 SW 可能在 notify() 完成前被杀掉,导致通知不弹出。
+  chrome.alarms.onAlarm.addListener(async (alarm) => {
     if (!alarm) return;
-    if (alarm.name.startsWith(ALARM_STUCK_PREFIX)) {
-      const problemKey = alarm.name.slice(ALARM_STUCK_PREFIX.length);
-      onStuck(problemKey);
-    } else if (alarm.name === ALARM_DAILY_REVIEW) {
-      onDailyReview();
+    try {
+      if (alarm.name.startsWith(ALARM_STUCK_PREFIX)) {
+        const problemKey = alarm.name.slice(ALARM_STUCK_PREFIX.length);
+        await onStuck(problemKey);
+      } else if (alarm.name === ALARM_DAILY_REVIEW) {
+        await onDailyReview();
+      }
+    } catch (e) {
+      logger.error("alarm", "alarm handler error", e);
     }
   });
 }

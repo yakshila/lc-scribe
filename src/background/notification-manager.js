@@ -6,7 +6,7 @@ const NOTIF_ID_PREFIX = "lcc-notif-";
 // 等待中的按钮回调:notificationId -> { action -> handler }
 const pendingActions = new Map();
 
-export async function notify({ id, title, message, iconUrl, buttons, onClick, onButton }) {
+export async function notify({ id, title, message, iconUrl, buttons, onClick, onButton, requireInteraction }) {
   const notifId = id || NOTIF_ID_PREFIX + Date.now();
   const btns = (buttons || []).slice(0, 2).map((b) => ({ title: b.title }));
   // MV3:iconUrl 用相对路径(相对 manifest 根),notifications 系统会解析为扩展内资源。
@@ -18,12 +18,10 @@ export async function notify({ id, title, message, iconUrl, buttons, onClick, on
     title: title || "LC Scribe",
     message: message || "",
     priority: 2,
-    requireInteraction: false,
+    // requireInteraction:带按钮的复习/卡壳通知默认常驻,直到用户操作或关闭。
+    // chrome.notifications 在某些平台会自动消失,导致用户错过按钮 —— 用 requireInteraction 保住。
+    requireInteraction: !!requireInteraction || btns.length > 0,
   };
-  if (btns.length) {
-    opts.buttons = btns;
-    // 带按钮的通知用更长的显示时间,但不用 requireInteraction(它有时导致渲染问题)
-  }
 
   // 记录回调
   pendingActions.set(notifId, { onClick, onButton, buttons });

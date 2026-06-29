@@ -32,6 +32,24 @@
 
 依据:[coordinator.js](../../src/background/coordinator.js) `generateNoteFor`、`onSubmissionResult`、`onAccepted`;[store.js](../../src/storage/store.js) `findNoteByProblemKey`、`newNoteSkeleton`、`saveNote`。
 
+### 6.1 AI 解答生成(最优方案讲解)
+
+入口:[coordinator.js](../../src/background/coordinator.js) `generateExplanationFor(noteId)`。触发点:复习通知「生成 AI 解答」按钮、笔记详情页「生成 AI 解答」按钮、`GENERATE_EXPLANATION` 消息。
+
+**与笔记生成的区别**:不依赖用户做题过程(不读 session/attempts),仅基于题目元数据(题号/标题/难度/标签/正文/hints)调 LLM,产出通俗易懂的「最优方案」讲解,存入 `note.aiGenerated.explanation`。
+
+**步骤**:
+1. `getNote(noteId)` 取笔记;`getProblem(lc:<slug>)` 取题目元数据(可能为 null,prompt 内会兜底)。
+2. 检查 `settings.llm.enabled`,未启用抛错。
+3. `buildExplanationPrompt({ note, problem, settings })` 构造 prompt(系统提示要求通俗易懂 + 必须给最优方案 + 严格 JSON)。
+4. `chatComplete(settings.llm, messages, { responseFormatJSON: true })` 调 LLM。
+5. `parseExplanationResult(text)` 解析为 `{ explanation: { plainExplanation, analogy, keyInsight, commonPitfalls[], codeTemplate, optimalApproach:{name, idea, steps[], whyOptimal, complexity:{time, space}} } }`。
+6. 写入 `note.aiGenerated.explanation`,`saveNote(note)`。
+
+**复习通知按钮行为**:`runDailyReviewCheck` 到点弹通知,带「生成 AI 解答」/「稍后」两个按钮。点「生成 AI 解答」会对到期复习题(限 `maxDuePerDay` 道)并发触发 `generateExplanationFor`,并打开复习页;点通知主体则只打开复习页。
+
+依据:[coordinator.js](../../src/background/coordinator.js) `generateExplanationFor`、`runDailyReviewCheck`;[prompts.js](../../src/llm/prompts.js) `buildExplanationPrompt`/`parseExplanationResult`;[llm-client.js](../../src/llm/llm-client.js) `chatComplete`。
+
 ---
 
 ## 7. Agent 体系(按 capability 调度)

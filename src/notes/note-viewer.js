@@ -16,6 +16,13 @@ async function sendBg(type, payload = {}) {
   });
 }
 
+// 返回完整响应(含 error),用于需要向用户展示错误信息的场景(如生成 AI 解答)
+async function sendBgRaw(type, payload = {}) {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage({ type, payload }, (r) => resolve(r));
+  });
+}
+
 // —— Tab 切换 ——
 document.querySelectorAll(".tab").forEach((t) => {
   t.addEventListener("click", () => switchTab(t.dataset.tab));
@@ -286,6 +293,21 @@ $("btnUploadFeishu").addEventListener("click", async () => {
   setHint("上传中…");
   const r = await sendBg("UPLOAD_NOTE", { noteId: currentNote.id, uploader: "feishu" });
   setHint(r && r.success ? (r.message || "已上传 ✓") : ("上传失败:" + (r && r.message) || ""), r && r.success ? "ok" : "err");
+});
+
+// 生成 AI 解答(通俗易懂的最优方案讲解,存入 note.aiGenerated.explanation)
+$("btnGenExplanation").addEventListener("click", async () => {
+  if (!currentNote) return;
+  setHint("正在生成 AI 解答,请稍候…");
+  const r = await sendBgRaw("GENERATE_EXPLANATION", { noteId: currentNote.id });
+  if (r && r.ok && r.data) {
+    currentNote = r.data;
+    $("noteDetail").innerHTML = renderMarkdown(noteToMarkdown(currentNote));
+    highlightCodeBlocks($("noteDetail"));
+    setHint("AI 解答已生成 ✓", "ok");
+  } else {
+    setHint("生成失败:" + (r && r.error ? r.error : "未知错误"), "err");
+  }
 });
 
 // 删除
