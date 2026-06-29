@@ -1,6 +1,6 @@
 // Coordinator —— 后台核心编排器。
 // 职责:路由消息(content / popup / options)、协调存储 / 通知 / 定时器 / Agent / Uploader / 复习。
-import { logger, formatDuration, nowISO } from "../utils.js";
+import { logger, formatDuration, nowISO, parseProblemSlug } from "../utils.js";
 import {
   getSettings, saveSettings,
   getSession, saveSession, deleteSession,
@@ -518,15 +518,32 @@ async function getStatus() {
   const settings = await getSettings();
   const stats = await getStats();
   const due = await getDueReviews();
-  // 找当前进行中的 session(取一个未 AC 的)
+  // 当前做题:优先取「当前激活 LeetCode tab 对应的 session」。
+  // 这样关闭旧题 tab、打开新题后,popup 不会卡在旧题的 session 上。
+  // 回退:只考虑「tabMap 里仍打开着的 LeetCode tab 对应的未 AC session」,
+  // 避免关掉所有 LeetCode tab 后还显示历史 session。
   const sessions = await chrome.storage.local.get("sessions").then((r) => r.sessions || {});
-  const active = Object.values(sessions).find((s) => s && !s.accepted);
+  let active = null;
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab && tab.url && /leetcode\.cn/.test(tab.url)) {
+      const slug = parseProblemSlug(tab.url);
+      if (slug) {
+        active = sessions[`lc:${slug}`] || null;
+      }
+    }
+  } catch (e) { /* SW 权限/异常时忽略,走回退 */ }
+  if (!active) {
+    // 回退:在仍打开着的 LeetCode tab 对应的 session 里找未 AC 的
+    const openKeys = new Set([...tabMap.keys()]);
+    active = Object.values(sessions).find((s) => s && !s.accepted && openKeys.has(s.problemKey)) || null;
+  }
   return {
     hasLLM: !!(settings.llm.enabled && settings.llm.apiKey && settings.llm.baseURL),
     model: settings.llm.model,
     dueCount: due.length,
     stats,
-    activeSession: active || null,
+    activeSession: active,
   };
 }
 

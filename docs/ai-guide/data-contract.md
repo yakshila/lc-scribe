@@ -92,7 +92,7 @@
 
 | type | 说明 |
 |---|---|
-| `GET_STATUS` | 状态汇总(LLM/统计/当前 session) |
+| `GET_STATUS` | 状态汇总(LLM/统计/当前 session)。activeSession 优先取「当前激活 LeetCode tab 对应的 session」,回退到「仍打开着的 LeetCode tab 的未 AC session」 |
 | `GET_NOTES` / `GET_NOTE` | 列表 / 单条 |
 | `GET_DUE_REVIEWS` | 到期复习 |
 | `GET_SETTINGS` / `SAVE_SETTINGS` | 配置读写 |
