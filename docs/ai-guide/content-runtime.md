@@ -12,7 +12,7 @@
 ## 11. Content Scripts 详解
 
 - [content.js](../../src/content/content.js):建 `window.LCC` 命名空间 + `LCC.bg` 发消息(检测 "Extension context invalidated" 并提示刷新)。启动顺序:page-hook → 监听 page message → problem-detector → timer-tracker → submission-watcher。`bootstrap()` 用 `setTimeout(0)` 等同级脚本就绪后再 `start()`。
-- [problem-detector.js](../../src/content/problem-detector.js):hook `history.pushState/replaceState` + `popstate`,`parseProblemSlug` 取 slug,`PROBLEM_ENTERED` 上报;GQL 异步补全 `PROBLEM_META`。DOM 兜底读标题(标记 `partial:true`)。
+- [problem-detector.js](../../src/content/problem-detector.js):hook `history.pushState/replaceState` + `popstate`,`parseProblemSlug` 取 slug,`PROBLEM_ENTERED` 上报;GQL 异步补全 `PROBLEM_META`。DOM 兜底读标题(标记 `partial:true`)。**额外监听 `visibilitychange`/`focus`**:切浏览器 tab 回来 / 最小化恢复时重新 `detect`(SPA 可能在隐藏期间已换题,且后台 tab 的 history hook 定时器可能被限流)。
 - [page-hook.js](../../src/content/page-hook.js)(MAIN world):包裹 `fetch`/`XHR`,识别 submit/interpret_solution 请求体(`typedCode`/`lang`,兼容 `data_json`),postMessage 回传 `SUBMIT_REQUEST`/`SUBMIT_RESULT`。`/submissions/detail/<id>/check/` 响应解析 status_code(10=Accepted 等),`runcode_` 前缀判为运行;runtime/memory 多字段兼容(`status_runtime`/`display_runtime`/`status_memory` 等)。
 - [submission-watcher.js](../../src/content/submission-watcher.js):合并 pendingSubmit 的 code/lang;DOM MutationObserver 兜底监听结果容器文本(只看结果容器选择器,避免命中统计区 "Accepted: 1.2M")。
 - [timer-tracker.js](../../src/content/timer-tracker.js):`visibilitychange`/`blur`/`focus` 降权,每 30s `TIMER_TICK`,`TIMER_STOP` 时 `TIMER_FINAL`。

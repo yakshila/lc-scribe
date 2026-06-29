@@ -21,6 +21,15 @@
     handleProblemEntered(slug);
   }
 
+  // 页面重新可见(切浏览器 tab 回来 / 最小化恢复)时重新检测。
+  // SPA 切 tab 不一定触发 history 事件,且页面隐藏期间 SPA 可能已换题。
+  function onVisible() {
+    if (document.hidden) return;
+    // 短延迟,等 SPA 在重新可见后完成可能的渲染
+    setTimeout(detect, 150);
+    setTimeout(detect, 800);
+  }
+
   async function handleProblemEntered(slug) {
     // 1. 优先从页面全局快速读
     let problem = null;
@@ -94,6 +103,9 @@
       wrapHistoryMethod("pushState");
       wrapHistoryMethod("replaceState");
       window.addEventListener("popstate", () => setTimeout(detect, 300));
+      // 切浏览器 tab 回来 / 最小化恢复:重新检测题目(SPA 可能在隐藏期间已换题)
+      document.addEventListener("visibilitychange", onVisible);
+      window.addEventListener("focus", onVisible);
       // 初始检测
       setTimeout(detect, 400);
       setTimeout(detect, 1500); // SPA 首屏较慢,二次兜底
