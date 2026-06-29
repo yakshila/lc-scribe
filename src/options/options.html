@@ -48,6 +48,8 @@
       <label class="row">输出语言
         <select id="noteLang"><option value="zh">中文</option><option value="en">English</option></select>
       </label>
+      <label class="row">发给 LLM 的最近试错代码次数<input type="number" id="recentAttemptsToLLM" min="0" max="50" step="1" placeholder="0" /></label>
+      <p class="tip">0 = 全部上传;填 n 只把最近 n 次 run/submit 的代码发给模型,用于控制 token。AC 代码始终上传,笔记仍保存完整轨迹。</p>
     </section>
 
     <!-- 复习 -->

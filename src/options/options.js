@@ -33,6 +33,7 @@ async function load() {
   // 笔记
   $("autoGenerate").checked = !!settings.notes.autoGenerate;
   $("noteLang").value = settings.notes.language || "zh";
+  $("recentAttemptsToLLM").value = settings.notes.recentAttemptsToLLM ?? 0;
   // 复习
   $("enableReminders").checked = !!settings.review.enableReminders;
   $("maxDuePerDay").value = settings.review.maxDuePerDay ?? 5;
@@ -98,6 +99,7 @@ function collectForm() {
     notes: {
       autoGenerate: $("autoGenerate").checked,
       language: $("noteLang").value,
+      recentAttemptsToLLM: parseInt($("recentAttemptsToLLM").value, 10) || 0,
     },
     review: {
       enableReminders: $("enableReminders").checked,
@@ -121,7 +123,7 @@ function collectForm() {
 function bindAutoSave() {
   const ids = ["llmEnabled","llmBaseURL","llmModel","llmApiKey","llmTemp","llmMaxTokens","llmTimeout",
     "onAccepted","onStuckEnabled","onStuckMinutes","onDueReview","reviewCheckHour",
-    "autoGenerate","noteLang","enableReminders","maxDuePerDay",
+    "autoGenerate","noteLang","recentAttemptsToLLM","enableReminders","maxDuePerDay",
     "feishuEnabled","feishuWebhook","feishuBotName","mdEnabled","mdAutoDownload"];
   ids.forEach((id) => {
     const el = $(id);

@@ -24,6 +24,17 @@
 
 依据:[store.js](../../src/storage/store.js) 顶部注释 + 各 CRUD 函数。
 
+### 4.1.1 `settings.notes` 字段
+
+| 字段 | 默认 | 说明 |
+|---|---|---|
+| `autoGenerate` | `false` | AC 后自动生成笔记 |
+| `language` | `"zh"` | 输出语言(`zh`/`en`) |
+| `includeAISection` | `true` | 是否包含 AI 增量字段 |
+| `recentAttemptsToLLM` | `0` | 发给 LLM 的最近试错代码次数。`0`=全部;`>0`=只取最近 n 次 run/submit 代码(控制 token)。AC 代码始终上传,笔记仍保存完整 timeline |
+
+依据:[store.js](../../src/storage/store.js) `DEFAULT_SETTINGS.notes`。
+
 ### 4.2 Note 结构(7 层,客观/主观/AI 增量分离)
 
 | 字段 | 含义 | 来源 |

@@ -274,7 +274,19 @@ export async function generateNoteFor(problemKey) {
   // 把失败尝试摘要给 agent 参考(运行和提交都算,体现完整试错过程)
   const failedAttempts = allAttempts.filter((a) => !/accepted/i.test(a.status));
 
-  const ctx = { note, session, problem: problemMeta, settings, failedAttempts, timeline: note.solving.timeline };
+  // 按配置裁剪发给 LLM 的试错代码:recentAttemptsToLLM>0 时只取最近 n 次,
+  // 控制 token 量。note.solving.timeline 仍保存完整轨迹(笔记不丢数据),
+  // 仅裁剪传给 Agent 的 ctx.timeline / ctx.failedAttempts。
+  // AC 代码在 note.code.solution 里单独传给 LLM,不受此裁剪影响。
+  const limit = Number(settings.notes && settings.notes.recentAttemptsToLLM);
+  const sliceRecent = (arr) => (Number.isFinite(limit) && limit > 0 ? arr.slice(-limit) : arr);
+  const ctxTimeline = sliceRecent(note.solving.timeline);
+  const ctxFailedAttempts = sliceRecent(failedAttempts);
+  if (limit > 0 && (ctxTimeline.length < note.solving.timeline.length || ctxFailedAttempts.length < failedAttempts.length)) {
+    logger.info("coord", `recentAttemptsToLLM=${limit}: timeline ${note.solving.timeline.length}->${ctxTimeline.length}, failed ${failedAttempts.length}->${ctxFailedAttempts.length} (note keeps full timeline)`);
+  }
+
+  const ctx = { note, session, problem: problemMeta, settings, failedAttempts: ctxFailedAttempts, timeline: ctxTimeline };
 
   const registry = getAgentRegistry();
   const enabled = settings.agents.enabled || [];

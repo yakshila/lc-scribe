@@ -31,6 +31,9 @@ export const DEFAULT_SETTINGS = {
     autoGenerate: false, // AC 后自动生成笔记
     language: "zh",
     includeAISection: true,
+    // 发给 LLM 的最近试错代码次数。0 = 全部;>0 = 只取最近 n 次(按时间倒序)的 run/submit 代码,
+    // 用于控制 token 量。AC 代码始终单独传给 LLM,不受此限制影响。
+    recentAttemptsToLLM: 0,
   },
   review: {
     algorithm: "SM-2",

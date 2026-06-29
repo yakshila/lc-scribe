@@ -18,10 +18,11 @@
 1. 取 `session`、`problem`(缺失/partial 时向 content 发 `REFRESH_PROBLEM_META` 同步拉 GQL;仍缺失则用 slug 构造 `partial` 兜底骨架)。
 2. **同题覆盖**:`findNoteByProblemKey(problemKey)` 查找已有笔记;若存在,复用其 `id`(使 `saveNote` 覆盖而非新增),并保留 `createdAt` 与 `review`(避免复习进度丢失)。
 3. `newNoteSkeleton(problemMeta)` 建骨架,填入 `solving`(startedAt/acceptedAt/durationSec/firstAccepted/languagesUsed/timeline/attemptCount)与 `code`(AC 那次 submit 的 lang/solution)。
-4. 按 `settings.agents.enabled` 顺序跑 Agent:`code-analysis` → `note-generation` → `review-scheduler`(各自 try/catch,互不阻塞)。
-5. `saveNote(note)`;若 `note.review` 存在则 `saveReview`。
-6. **统计**:`totalNotes` 仅在「新笔记(非覆盖)」时 +1。
-7. `maybeAutoUpload(note)`:对每个 `enabled && autoDownload` 的 uploader 自动上传。
+4. **裁剪发给 LLM 的试错代码**:若 `settings.notes.recentAttemptsToLLM > 0`,只取最近 n 次 run/submit 的代码传给 Agent(`ctx.timeline` / `ctx.failedAttempts`);`note.solving.timeline` 仍保存完整轨迹(笔记不丢数据)。AC 代码在 `note.code.solution` 单独传给 LLM,不受此裁剪影响。
+5. 按 `settings.agents.enabled` 顺序跑 Agent:`code-analysis` → `note-generation` → `review-scheduler`(各自 try/catch,互不阻塞)。
+6. `saveNote(note)`;若 `note.review` 存在则 `saveReview`。
+7. **统计**:`totalNotes` 仅在「新笔记(非覆盖)」时 +1。
+8. `maybeAutoUpload(note)`:对每个 `enabled && autoDownload` 的 uploader 自动上传。
 
 **关键约束**:
 - 只有 `submit`(非 `run`)且 `accepted` 才算 AC(`onSubmissionResult` 中 `isRun` 判断)。
