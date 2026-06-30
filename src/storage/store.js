@@ -334,6 +334,7 @@ export function newNoteSkeleton(problem) {
     aiGenerated: {
       summary: "",
       alternativeApproaches: [],
+      betterApproach: null, // 更优解法通俗讲解,笔记生成时由 LLM 填充(用户解法已最优则为 null)
       commonMistakes: [],
       interviewTips: "",
       explanation: null, // 最优方案通俗讲解,由 GENERATE_EXPLANATION 触发生成

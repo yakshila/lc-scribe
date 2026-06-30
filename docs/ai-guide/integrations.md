@@ -28,7 +28,7 @@
 - [llm-client.js](../../src/llm/llm-client.js) `chatComplete`:OpenAI 兼容 `POST {baseURL}/chat/completions`,`Bearer` 鉴权,`AbortController` 超时(`timeoutMs`,默认 60000)。`responseFormatJSON` 时带 `response_format:{type:"json_object"}`。
 - `ensureHostPermission(baseURL)`:对 baseURL origin 申请 optional host 权限(需用户手势)。
 - [prompts.js](../../src/llm/prompts.js):
-  - `buildNoteGenerationPrompt(ctx)`:产出 system+user prompt,要求 LLM 返回严格 JSON,字段对齐 note schema。pitfalls 要求基于用户**实际失败代码**做深度分析(现象→根因→错代码→修法→规律)。
+  - `buildNoteGenerationPrompt(ctx)`:产出 system+user prompt,要求 LLM 返回严格 JSON,字段对齐 note schema。pitfalls 要求基于用户**实际失败代码**做深度分析(现象→根因→错代码→修法→规律)。**betterApproach** 要求判断用户 AC 解法是否最优,非最优时用大白话讲清更优解法(含 userComplexity/idea/steps/whyBetter/analogy/complexity,whyBetter 必须有具体复杂度对比数字),已最优时填 null。整体语言风格强调通俗易懂、像给朋友讲题。
   - `parseNoteGenerationResult(text)`:用 `extractJSON` 解析,`normalizePitfalls` 兼容字符串/对象两种格式。
   - `buildCodeAnalysisPrompt` / `parseCodeAnalysisResult`:关键行 + 点评。
   - `buildExplanationPrompt(ctx)`:AI 解答 prompt,要求通俗易懂 + 必须给最优方案,输出 JSON `{plainExplanation, optimalApproach{name, idea, steps[], whyOptimal, complexity}, analogy, keyInsight, commonPitfalls[], codeTemplate}`。

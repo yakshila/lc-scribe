@@ -61,6 +61,7 @@ export const NOTE_FIELDS = {
   aiGenerated: {
     summary: "string 一句话总结",
     alternativeApproaches: "string[] 其他解法",
+    betterApproach: "object|null 更优解法通俗讲解 {userComplexity:{time,space}, name, idea, steps[], whyBetter, analogy, complexity:{time,space}}。用户解法已最优时为 null",
     commonMistakes: "string[] 常见错误",
     interviewTips: "string 面试建议",
     explanation: "object|null 最优方案通俗讲解 {plainExplanation, analogy, keyInsight, commonPitfalls[], codeTemplate, optimalApproach:{name, idea, steps[], whyOptimal, complexity:{time, space}}}",
@@ -170,12 +171,32 @@ export function noteToMarkdown(note) {
     L.push("");
   }
 
-  if (ai && (ai.summary || ai.alternativeApproaches?.length || ai.commonMistakes?.length || ai.interviewTips)) {
+  if (ai && (ai.summary || ai.alternativeApproaches?.length || ai.betterApproach || ai.commonMistakes?.length || ai.interviewTips)) {
     L.push("## AI 补充");
     if (ai.summary) L.push(`**总结**: ${ai.summary}`, "");
     if (ai.alternativeApproaches?.length) { L.push("**其他解法**:"); ai.alternativeApproaches.forEach((x) => L.push(`- ${x}`)); }
     if (ai.commonMistakes?.length) { L.push("**常见错误**:"); ai.commonMistakes.forEach((x) => L.push(`- ${x}`)); }
     if (ai.interviewTips) L.push("", `**面试建议**: ${ai.interviewTips}`);
+    L.push("");
+  }
+
+  // 更优解法通俗讲解(用户 AC 解法非最优时,AI 补充更优解法 + 大白话讲解)
+  if (ai && ai.betterApproach) {
+    const ba = ai.betterApproach;
+    L.push("## 更优解法");
+    if (ba.userComplexity && (ba.userComplexity.time || ba.userComplexity.space)) {
+      L.push(`> 你的解法: 时间 ${ba.userComplexity.time || "—"} / 空间 ${ba.userComplexity.space || "—"}  `);
+    }
+    if (ba.name) L.push(`### ${ba.name}`);
+    if (ba.idea) L.push(`**核心思想**: ${ba.idea}`, "");
+    if (ba.analogy) L.push(`**类比**: ${ba.analogy}`, "");
+    if (ba.steps && ba.steps.length) {
+      L.push("**步骤**:");
+      ba.steps.forEach((s, i) => L.push(`${i + 1}. ${s}`));
+      L.push("");
+    }
+    if (ba.whyBetter) L.push(`**为什么更优**: ${ba.whyBetter}`, "");
+    if (ba.complexity) L.push(`- 复杂度: 时间 ${ba.complexity.time || "—"} / 空间 ${ba.complexity.space || "—"}`);
     L.push("");
   }
 

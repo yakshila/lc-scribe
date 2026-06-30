@@ -58,7 +58,7 @@
 | `code` | 语言/AC 代码/`keyLines[]`(关键行标注) | Agent 标注 |
 | `insights` | `pitfalls[]`(深度分析:现象/根因/错代码/修法/规律)/收获/模式/相关题 | Agent 辅助提炼 |
 | `review` | SM-2:间隔/ease/repetitions/下次复习/历史 | 调度状态 |
-| `aiGenerated` | 总结/其他解法/常见错误/面试建议/`explanation`(最优方案通俗讲解) | AI 增量,与用户字段分离 |
+| `aiGenerated` | 总结/其他解法/`betterApproach`(更优解法通俗讲解)/常见错误/面试建议/`explanation`(最优方案通俗讲解) | AI 增量,与用户字段分离 |
 
 - `problemKey` 形如 `lc:<slug>`(见 [utils.js](../../src/utils.js) `problemKey`)。
 - 笔记 `id` 由 `generateId("note")` 生成(`note_<base36时间>_<随机>`)。

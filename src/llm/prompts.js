@@ -73,13 +73,15 @@ export function buildNoteGenerationPrompt(ctx) {
   - 这个错误会导致什么具体现象(为什么会 Memory Limit Exceeded / TLE / Wrong Answer,要讲清因果链)
   - 正确的写法是什么、为什么这样写才对
 
+你的另一个核心任务是:判断用户的 AC 解法是否最优。如果存在时间/空间复杂度更优的解法,必须在 betterApproach 字段里用通俗易懂的方式讲清楚更优解法。这是复习时最有价值的部分。
+
 要求:
-1. 用 ${outLang} 输出,语言要通俗易懂、像在给同事讲题,不要堆术语。
+1. 用 ${outLang} 输出,语言要通俗易懂、像在给朋友讲题,不要堆术语。关键概念用大白话或生活类比解释,让没做过这题的人也能听懂。
 2. 只输出一个 JSON 对象,不要任何额外文字,不要 markdown 代码围栏。
 3. JSON 字段固定如下:
 {
-  "intuition": "对题目的第一直觉,1-2 句",
-  "approach": "解法步骤,分点描述,3-6 点",
+  "intuition": "对题目的第一直觉,1-2 句,用大白话讲",
+  "approach": "解法步骤,分点描述,3-6 点,每点讲清在干嘛、为什么这步对",
   "algorithm": "算法名称,如 '哈希表一次遍历'",
   "dataStructures": ["用到的数据结构"],
   "complexity": { "time": "O(?)", "space": "O(?)" },
@@ -96,15 +98,26 @@ export function buildNoteGenerationPrompt(ctx) {
   "patterns": ["可复用的解题模式"],
   "relatedProblems": ["相关题号或题名"],
   "summary": "结合用户实际做题节奏的一句话总结(如'用 dummyHead 导致 MLE,调试多次后改用 pre=nil 的标准迭代法通过')",
-  "alternativeApproaches": ["其他可行解法及其权衡"],
+  "alternativeApproaches": ["其他可行解法的简要列举,一行一个,含权衡"],
+  "betterApproach": {
+    "userComplexity": { "time": "用户 AC 代码的实际复杂度,如 O(n²)", "space": "O(1)" },
+    "name": "更优解法名称,如 '哈希表一次遍历'",
+    "idea": "核心思想,用大白话解释为什么这么做能解、为什么更优(如'用哈希表记下每个数,一次遍历就能找到答案,不用两两比较')",
+    "steps": ["分步讲解,每步都讲清在干嘛、为什么这步对,让初学者能跟上"],
+    "whyBetter": "为什么比用户的解法更好。必须对比复杂度(如'用户 O(n²) 双重循环 vs 哈希表 O(n) 一次遍历'),并用大白话解释差距(如'n=1万时,用户的做法要跑1亿次,哈希表只跑1万次,差1万倍')",
+    "analogy": "一个生活化的类比帮理解(如'就像查字典:用户的做法是一页页翻,哈希表是直接翻到字母索引')",
+    "complexity": { "time": "O(n)", "space": "O(n)" }
+  },
   "commonMistakes": ["这道题常见错误"],
   "interviewTips": "面试中如何讲清这题,1-2 句"
 }
 
 注意:
 - pitfalls 必须基于用户实际的失败代码分析,不要泛泛而谈"可能踩的坑"。如果用户没失败过,pitfalls 为空数组 []。
-- 每个坑要讲透:现象 -> 根因 -> 错误代码 -> 修法 -> 规律,像给同事讲题一样通俗详细。
-- 如果两次失败的根因相同(比如都是 dummyHead 导致环),合并成一个坑,不要重复列。`;
+- 每个坑要讲透:现象 -> 根因 -> 错误代码 -> 修法 -> 规律,像给朋友讲题一样通俗详细。
+- 如果两次失败的根因相同(比如都是 dummyHead 导致环),合并成一个坑,不要重复列。
+- **betterApproach 是重点**:只要用户的 AC 解法不是本题时间/空间最优解,就必须填 betterApproach 并用大白话讲透。只有当用户解法已是最优(如 O(n) 时间 O(1) 空间且无更优方案)时,betterApproach 才填 null。
+- betterApproach 的 idea / steps / whyBetter / analogy 都要用通俗易懂的语言,避免堆术语,像在给没做过这题的朋友讲题。whyBetter 必须有具体的复杂度对比数字。`;
 
   const user = `请基于以下数据生成笔记内容。
 
@@ -130,7 +143,8 @@ ${failedSummary}
 ${code}
 \`\`\`
 
-请输出 JSON。pitfalls 字段请结合上面的失败代码做深度分析,每个坑都要讲透现象→根因→错代码→修法→规律。`;
+请输出 JSON。pitfalls 字段请结合上面的失败代码做深度分析,每个坑都要讲透现象→根因→错代码→修法→规律。
+betterApproach 字段:请先判断上面 AC 代码的复杂度,再看是否存在更优解法;若有,用大白话讲清更优解法的思路、步骤、为什么更优(含具体复杂度对比数字)和生活类比。`;
 
   return { system, user };
 }
@@ -191,9 +205,29 @@ export function parseNoteGenerationResult(text) {
     aiGenerated: {
       summary: str(obj.summary),
       alternativeApproaches: arr(obj.alternativeApproaches),
+      betterApproach: normalizeBetterApproach(obj.betterApproach),
       commonMistakes: arr(obj.commonMistakes),
       interviewTips: str(obj.interviewTips),
     },
+  };
+}
+
+/** 归一化 betterApproach:用户解法已最优时 LLM 可能返回 null/{} ,统一为 null 或完整对象 */
+function normalizeBetterApproach(v) {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const ba = v;
+  // 必须有 name + idea 才算有效更优解法,否则视为 null
+  if (!str(ba.name) && !str(ba.idea)) return null;
+  const uc = ba.userComplexity || {};
+  const cc = ba.complexity || {};
+  return {
+    userComplexity: { time: str(uc.time), space: str(uc.space) },
+    name: str(ba.name),
+    idea: str(ba.idea),
+    steps: arr(ba.steps),
+    whyBetter: str(ba.whyBetter),
+    analogy: str(ba.analogy),
+    complexity: { time: str(cc.time), space: str(cc.space) },
   };
 }
 
