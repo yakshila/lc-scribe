@@ -439,6 +439,32 @@ export async function reviewNote(noteId, grade) {
   return next;
 }
 
+// 自定义下次复习时间:用户手动指定 N 天后复习,覆盖 SM-2 算法结果。
+// 用于「这题我想提前/延后复习」场景。保留 ease/repetitions/reviewHistory,
+// 只改 interval + nextReviewAt,并标记 customSet=true 便于追溯。
+export async function setCustomReview(noteId, days) {
+  const n = Number(days);
+  if (!Number.isFinite(n) || n < 1) throw new Error(`days must be >= 1, got ${days}`);
+  const cap = Math.min(n, 365);
+  const review = (await getReview(noteId)) || sm2Init();
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const next = {
+    ...review,
+    interval: cap,
+    nextReviewAt: new Date(Date.now() + cap * DAY_MS).toISOString(),
+    lastReviewedAt: nowISO(),
+    customSet: true, // 标记本次是用户手动设定,非 SM-2 算出
+  };
+  await saveReview(noteId, next);
+  const note = await getNote(noteId);
+  if (note) {
+    note.review = next;
+    await saveNote(note);
+  }
+  logger.info("coord", `custom review set: note=${noteId} in ${cap} day(s)`);
+  return next;
+}
+
 export async function getDueReviews(now = Date.now()) {
   const reviews = await listReviews();
   const due = reviews.filter((r) => r.nextReviewAt && new Date(r.nextReviewAt).getTime() <= now);
@@ -452,6 +478,14 @@ export async function getDueReviews(now = Date.now()) {
 async function runDailyReviewCheck() {
   const settings = await getSettings();
   if (!settings.review.enableReminders || !settings.notifications.onDueReview) return;
+  // 每天只提醒一次:记录上次提醒日期,同一天内 SW 多次唤醒(浏览器打开/从最小化恢复/切 tab)
+  // 都不重复弹通知。日期用本地时区 YYYY-MM-DD。
+  const today = new Date().toISOString().slice(0, 10);
+  const stats = await getStats();
+  if (stats.lastReviewNotifiedDate === today) {
+    logger.debug("coord", `review already notified today (${today}), skip`);
+    return;
+  }
   const due = await getDueReviews();
   if (due.length === 0) return;
   const max = settings.review.maxDuePerDay || 5;
@@ -481,6 +515,8 @@ async function runDailyReviewCheck() {
       }
     },
   });
+  // 标记今天已提醒。即使 notify 失败也标记,避免 SW 反复唤醒时刷屏。
+  await bumpStats({ lastReviewNotifiedDate: today });
 }
 
 // 卡壳提醒
@@ -578,6 +614,7 @@ export async function handleMessage(msg, sender) {
     case "GENERATE_NOTE": return await generateNoteFor(payload.problemKey);
     case "GENERATE_EXPLANATION": return await generateExplanationFor(payload.noteId);
     case "REVIEW_GRADE": return await reviewNote(payload.noteId, payload.grade);
+    case "SET_CUSTOM_REVIEW": return await setCustomReview(payload.noteId, payload.days);
     case "DELETE_NOTE": await deleteNote(payload.noteId); return { ok: true };
     case "DELETE_NOTES": {
       // 批量删除笔记(含对应 review)。payload.noteIds: string[]

@@ -101,6 +101,7 @@
 | `GENERATE_NOTE` | 触发笔记生成(`payload.problemKey`) |
 | `GENERATE_EXPLANATION` | 触发生成「最优方案」AI 解答(`payload.noteId`),结果存入 `note.aiGenerated.explanation`,返回更新后的 Note |
 | `REVIEW_GRADE` | 复习评分(`noteId`, `grade`) |
+| `SET_CUSTOM_REVIEW` | 自定义下次复习(`noteId`, `days`),覆盖 SM-2 结果,标记 `customSet:true` |
 | `DELETE_NOTE` | 删除笔记 |
 | `DELETE_NOTES` | 批量删除笔记(`noteIds: string[]`),返回 `{ removed, count }` |
 | `UPLOAD_NOTE` | 上传(`noteId`, `uploader`) |

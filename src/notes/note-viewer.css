@@ -95,6 +95,9 @@ input[type="search"]:focus { outline: none; border-color: var(--accent); }
 .detail-actions { display: flex; align-items: center; justify-content: space-between; margin-top: 18px; gap: 12px; flex-wrap: wrap; }
 .review-grade { display: flex; align-items: center; gap: 8px; }
 .review-grade span { color: var(--muted); font-size: 13px; }
+.custom-review { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.custom-review span { color: var(--muted); }
+.custom-review input { width: 60px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--card-2); color: var(--text); font: inherit; }
 .grade { padding: 6px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--card-2); cursor: pointer; color: var(--text); font: inherit; }
 .grade:hover { background: #2a2f3a; }
 .grade.g0 { border-color: var(--red); } .grade.g0:hover { background: rgba(255,55,95,.15); }

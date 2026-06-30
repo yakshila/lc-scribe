@@ -280,6 +280,24 @@ document.querySelectorAll(".grade[data-grade]").forEach((btn) => {
   });
 });
 
+// 自定义下次复习(覆盖 SM-2,手动指定 N 天后)
+$("btnSetCustomReview").addEventListener("click", async () => {
+  if (!currentNote) return;
+  const days = parseInt($("customReviewDays").value, 10);
+  if (!Number.isFinite(days) || days < 1) {
+    setHint("请输入有效的天数(≥1)", "err");
+    return;
+  }
+  const next = await sendBg("SET_CUSTOM_REVIEW", { noteId: currentNote.id, days });
+  if (next) {
+    currentNote.review = next;
+    setHint(`已设定 ✓ 下次复习:${fmtDate(next.nextReviewAt)} (${next.interval} 天后,自定义)`, "ok");
+    $("customReviewDays").value = "";
+  } else {
+    setHint("设定失败", "err");
+  }
+});
+
 // 导出 Markdown
 $("btnExportMd").addEventListener("click", async () => {
   if (!currentNote) return;

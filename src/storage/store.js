@@ -189,9 +189,13 @@ export async function getReview(noteId) {
 export async function saveReview(noteId, review) {
   const { reviews } = await chrome.storage.local.get("reviews");
   const map = reviews || {};
-  map[noteId] = review;
+  // 把 noteId 写进 review 对象本身,这样 listReviews 用 Object.values 取出后仍能关联到 note。
+  // 否则 getDueReviews 里 r.noteId 为 undefined,noteMap.get(undefined) 永远找不到 note,
+  // 导致复习 tab 不显示任何待复习题。
+  const r = { ...review, noteId };
+  map[noteId] = r;
   await chrome.storage.local.set({ reviews: map });
-  return review;
+  return r;
 }
 
 export async function listReviews() {
@@ -216,6 +220,7 @@ export async function getStats() {
     totalReviewsDone: base.totalReviewsDone || 0,
     streakDays: base.streakDays || 0,
     lastActiveDate: base.lastActiveDate || null,
+    lastReviewNotifiedDate: base.lastReviewNotifiedDate || null, // 每日复习提醒去重(YYYY-MM-DD)
   };
 }
 

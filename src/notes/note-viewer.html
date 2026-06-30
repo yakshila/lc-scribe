@@ -54,6 +54,12 @@
           <button data-grade="4" class="grade g4">良好</button>
           <button data-grade="5" class="grade g5">简单</button>
         </div>
+        <div class="custom-review">
+          <span>自定义下次复习:</span>
+          <input type="number" id="customReviewDays" min="1" max="365" step="1" placeholder="天数" title="几天后复习(覆盖 SM-2 算法结果)" />
+          <span>天 后</span>
+          <button id="btnSetCustomReview" class="ghost">设定</button>
+        </div>
         <div class="right">
           <button id="btnGenExplanation" class="ghost">生成 AI 解答</button>
           <button id="btnExportMd" class="ghost">导出 Markdown</button>
