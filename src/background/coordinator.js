@@ -146,7 +146,7 @@ async function onAccepted(problemKey, session) {
       ],
       onButton: (action) => {
         if (action === "generate-note") {
-          generateNoteFor(problemKey).catch((e) => logger.error("coord", "gen-note from notif", e));
+          runNoteGenerationWithProgress(problemKey).catch((e) => logger.error("coord", "gen-note from notif", e));
         }
       },
     });
@@ -165,7 +165,7 @@ async function onAccepted(problemKey, session) {
     }
   }
   if (settings.notes.autoGenerate) {
-    await generateNoteFor(problemKey);
+    await runNoteGenerationWithProgress(problemKey);
   }
 }
 
@@ -328,6 +328,46 @@ export async function generateNoteFor(problemKey) {
 
   logger.info("coord", `note generated: ${note.id} for ${problemKey}`);
   return note;
+}
+
+// 带进度反馈的笔记生成:在 LeetCode 页弹常驻 toast,显示 loading → success/error。
+// 解决"点通知按钮后通知立即消失,几十秒黑盒不知道生成状态"的问题。
+// loading 态 sticky 常驻(带 spinner);成功后变 success 态带「查看笔记」按钮(30s 后消失);
+// 失败后变 error 态显示错误信息(15s 后消失)。
+async function runNoteGenerationWithProgress(problemKey) {
+  const toastId = `gen-note-${problemKey}`;
+  // 1. 弹 loading toast(state=loading 默认 sticky,带 spinner)
+  await sendToastToActiveTab({
+    id: toastId,
+    title: "正在生成笔记…",
+    message: "AI 正在分析你的做题过程,约 20-60 秒",
+    state: "loading",
+  });
+  // 2. 生成笔记(可能耗时几十秒)
+  try {
+    const note = await generateNoteFor(problemKey);
+    // 3. 成功:用同 id 更新为 success 态,带查看按钮
+    await sendToastToActiveTab({
+      id: toastId,
+      title: "笔记已生成 ✓",
+      message: note.meta.title || note.meta.titleSlug || problemKey,
+      state: "success",
+      duration: 30000,
+      buttons: [{ title: "查看笔记", action: "view-note", noteId: note.id }],
+    });
+    return note;
+  } catch (e) {
+    logger.error("coord", `gen-note progress failed for ${problemKey}`, e);
+    // 失败:更新为 error 态,显示错误
+    await sendToastToActiveTab({
+      id: toastId,
+      title: "笔记生成失败",
+      message: String(e && e.message || e),
+      state: "error",
+      duration: 15000,
+    });
+    throw e;
+  }
 }
 
 // ============ AI 解答生成 ============
@@ -494,11 +534,13 @@ export async function handleMessage(msg, sender) {
     case "PROBLEM_META": return await onProblemMeta(payload || {});
     case "SUBMISSION_RESULT": return await onSubmissionResult(payload || {}, sender);
     case "TOAST_BUTTON": {
-      // toast 按钮点击回调(系统通知失败时的兜底交互)
-      const { action, problemKey } = payload || {};
-      logger.info("coord", `toast button: ${action} for ${problemKey}`);
+      // toast 按钮点击回调(系统通知失败时的兜底交互 + 进度 toast 的「查看笔记」按钮)
+      const { action, problemKey, noteId } = payload || {};
+      logger.info("coord", `toast button: ${action} for ${problemKey || noteId}`);
       if (action === "generate-note" && problemKey) {
-        generateNoteFor(problemKey).catch((e) => logger.error("coord", "gen-note from toast", e));
+        runNoteGenerationWithProgress(problemKey).catch((e) => logger.error("coord", "gen-note from toast", e));
+      } else if (action === "view-note" && noteId) {
+        chrome.tabs.create({ url: chrome.runtime.getURL(`src/notes/note-viewer.html?id=${noteId}`) });
       }
       return { ok: true };
     }

@@ -29,3 +29,6 @@
   - `installAlarmListener(onStuck, onDailyReview)`:`onAlarm` 监听器为 **async 并 await 回调**(MV3 SW 会等异步完成再休眠,避免 `notify()` 未完成就被杀导致通知不弹出)。
 - 每日复习通知(`runDailyReviewCheck`):带「生成 AI 解答」/「稍后」按钮。点「生成 AI 解答」对到期题(限 `maxDuePerDay`)并发触发 `generateExplanationFor` 并打开复习页;点主体只打开复习页。
 - 系统通知失败时,coordinator 用 `sendToastToActiveTab` 在 LeetCode 页内弹 toast 兜底(content.js `SHOW_TOAST`)。
+- **页面内进度 toast**([content.js](../../src/content/content.js) `showToast`):支持 `id` 复用(同 id 更新内容不重建元素)、`state`(`loading`/`success`/`error`/`info`/`warn`,loading 显示 CSS spinner)、`sticky`(常驻不自动消失,等后续 update)。`toastElements` Map 缓存 `id -> element`,`removeToast` 同步清 Map 与定时器。
+- **笔记生成进度反馈**([coordinator.js](../../src/background/coordinator.js) `runNoteGenerationWithProgress`):点通知/toast「生成笔记」按钮或 `autoGenerate` 时,先弹 loading toast(`gen-note-<problemKey>`,sticky+spinner),生成完成更新为 success 态带「查看笔记」按钮(`view-note` action 打开 `note-viewer.html?id=<noteId>`),失败更新为 error 态显示错误。解决"点按钮后通知消失、几十秒黑盒无反馈"。
+- toast 按钮消息 `TOAST_BUTTON` 支持 action:`generate-note`(走进度反馈)、`view-note`(打开笔记详情页)、`later`(无操作)。

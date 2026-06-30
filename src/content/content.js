@@ -119,26 +119,72 @@
   };
 
   // —— 页面内 toast(系统通知失败时的兜底,确保用户能看到 AC 等关键提示) ——
-  function showToast({ title, message, type = "info", duration = 6000, buttons }) {
+  // 支持 id 复用 + 状态更新(loading/success/error/info/warn)+ sticky(常驻,等后续 update)
+  // 用于"生成笔记"等耗时操作:点按钮后弹 loading toast,完成/失败时用同 id 更新内容。
+  const toastElements = new Map(); // id -> element
+  function ensureSpinnerStyle() {
+    if (document.getElementById("lcc-toast-style")) return;
+    const s = document.createElement("style");
+    s.id = "lcc-toast-style";
+    s.textContent = "@keyframes lcc-spin{to{transform:rotate(360deg)}}";
+    document.documentElement.appendChild(s);
+  }
+  function removeToast(el, id) {
+    if (!el) return;
+    if (el._lccTimer) { clearTimeout(el._lccTimer); el._lccTimer = null; }
+    if (id) toastElements.delete(id);
+    el.style.opacity = "0";
+    el.style.transform = "translateX(20px)";
+    setTimeout(() => { try { el.remove(); } catch (_) {} }, 300);
+  }
+  function showToast({ id, title, message, type = "info", state, duration = 6000, sticky = false, buttons }) {
     try {
+      ensureSpinnerStyle();
       const colors = {
         success: { bg: "#1a3a2a", border: "#5CC863", icon: "✓" },
         info:    { bg: "#1a2a3a", border: "#4A90D9", icon: "i" },
         warn:    { bg: "#3a2a1a", border: "#FF9F43", icon: "!" },
+        error:   { bg: "#3a1a1a", border: "#E74C3C", icon: "✕" },
+        loading: { bg: "#1a2a3a", border: "#4A90D9", icon: "…" },
       };
-      const c = colors[type] || colors.info;
-      const el = document.createElement("div");
-      el.id = "lcc-toast-" + Date.now();
-      el.style.cssText = [
-        "position:fixed", "top:20px", "right:20px", "z-index:2147483647",
-        "background:" + c.bg, "border:1px solid " + c.border, "border-radius:8px",
-        "padding:12px 16px", "max-width:360px", "box-shadow:0 4px 20px rgba(0,0,0,0.4)",
-        "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
-        "color:#e8e8e8", "font-size:14px", "line-height:1.5",
-        "display:flex", "gap:10px", "align-items:flex-start",
-        "transition:opacity .3s, transform .3s", "opacity:0", "transform:translateX(20px)",
-      ].join(";") + ";";
-      let html = '<div style="color:' + c.border + ';font-weight:bold;font-size:16px;flex-shrink:0">' + c.icon + '</div>'
+      // state 优先于 type(新调用方用 state,旧调用方用 type,二者择一)
+      const st = state || type;
+      const c = colors[st] || colors.info;
+      const isLoading = st === "loading";
+      // loading 默认常驻(不自动消失),除非显式传 sticky=false
+      const isSticky = isLoading ? (sticky !== false) : sticky;
+
+      // 同 id 复用:更新现有 toast 内容,不重建元素(保留位置、不闪烁)
+      let el;
+      if (id && toastElements.has(id)) {
+        el = toastElements.get(id);
+        el.style.background = c.bg;
+        el.style.borderColor = c.border;
+      } else {
+        el = document.createElement("div");
+        el.style.cssText = [
+          "position:fixed", "top:20px", "right:20px", "z-index:2147483647",
+          "background:" + c.bg, "border:1px solid " + c.border, "border-radius:8px",
+          "padding:12px 16px", "max-width:360px", "box-shadow:0 4px 20px rgba(0,0,0,0.4)",
+          "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
+          "color:#e8e8e8", "font-size:14px", "line-height:1.5",
+          "display:flex", "gap:10px", "align-items:flex-start",
+          "transition:opacity .3s, transform .3s", "opacity:0", "transform:translateX(20px)",
+        ].join(";") + ";";
+        if (id) toastElements.set(id, el);
+        document.documentElement.appendChild(el);
+        requestAnimationFrame(() => {
+          el.style.opacity = "1";
+          el.style.transform = "translateX(0)";
+        });
+      }
+
+      // 图标:loading 用 CSS spinner,其他用字符
+      const iconHtml = isLoading
+        ? '<div style="flex-shrink:0;width:16px;height:16px;margin-top:2px;border:2px solid ' + c.border + ';border-top-color:transparent;border-radius:50%;animation:lcc-spin .8s linear infinite"></div>'
+        : '<div style="color:' + c.border + ';font-weight:bold;font-size:16px;flex-shrink:0">' + c.icon + '</div>';
+
+      let html = iconHtml
         + '<div style="flex:1"><div style="font-weight:600;margin-bottom:2px">' + escapeHtml(title || "LC Scribe") + '</div>'
         + (message ? '<div style="opacity:.85;font-size:13px;margin-bottom:8px">' + escapeHtml(message) + '</div>' : '');
       // 按钮(最多2个,模拟系统通知的 buttons 行为)
@@ -168,27 +214,22 @@
             const idx = Number(btn.getAttribute("data-lcc-btn-idx"));
             const b = buttons[idx];
             if (b && b.action) {
-              // 告诉 background 执行这个 action(如 generate-note)
-              LCC.bg("TOAST_BUTTON", { action: b.action, problemKey: b.problemKey });
+              // 告诉 background 执行这个 action(如 generate-note / view-note)
+              LCC.bg("TOAST_BUTTON", { action: b.action, problemKey: b.problemKey, noteId: b.noteId });
             }
-            // 点击后立即关闭 toast
-            try { el.remove(); } catch (_) {}
+            // 点击后立即关闭 toast(查看笔记按钮也关,因为会跳转到笔记页)
+            removeToast(el, id);
           });
           btn.addEventListener("mouseover", () => { btn.style.opacity = "0.85"; });
           btn.addEventListener("mouseout", () => { btn.style.opacity = "1"; });
         });
       }
 
-      document.documentElement.appendChild(el);
-      requestAnimationFrame(() => {
-        el.style.opacity = "1";
-        el.style.transform = "translateX(0)";
-      });
-      setTimeout(() => {
-        el.style.opacity = "0";
-        el.style.transform = "translateX(20px)";
-        setTimeout(() => { try { el.remove(); } catch (_) {} }, 300);
-      }, duration);
+      // 自动消失:非 sticky 时设定时器。更新时先清除旧定时器(避免旧定时器提前关掉更新后的 toast)。
+      if (el._lccTimer) { clearTimeout(el._lccTimer); el._lccTimer = null; }
+      if (!isSticky) {
+        el._lccTimer = setTimeout(() => removeToast(el, id), duration);
+      }
     } catch (e) {
       LCC.utils.log("warn", "content", "showToast failed", e);
     }
