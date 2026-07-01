@@ -115,7 +115,12 @@ async function onSubmissionResult(payload, sender) {
     session.firstAccepted = session.attempts.filter((a) => a.kind !== "run").length === 1;
     becameAccepted = true;
     if (session.startedAt) {
-      session.durationSec = Math.max(0, Math.floor((Date.now() - new Date(session.startedAt).getTime()) / 1000));
+      // 优先用 timer-tracker 上报的有效活跃时长(elapsedSec,已扣除切走 tab / 失焦的时间),
+      // 这样切换 tab 期间不计入做题用时。elapsedSec 由 TIMER_TICK 每 30s 上报,
+      // 切走时 visibilitychange 暂停累加,切回恢复 —— 真正反映"盯着这道题的时间"。
+      // 兜底:若 timer 从未上报(如刚进入就立刻 AC),用墙上时钟差值。
+      const wall = Math.max(0, Math.floor((Date.now() - new Date(session.startedAt).getTime()) / 1000));
+      session.durationSec = (session.elapsedSec && session.elapsedSec > 0) ? session.elapsedSec : wall;
     }
     clearStuckAlarm(problemKey);
     sendToProblemTab(problemKey, { type: "TIMER_STOP" });

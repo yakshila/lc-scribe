@@ -32,9 +32,9 @@
 
   function tick() {
     if (!active || !startedAt) return;
-    // 每 30s 上报一次当前用时,供 background 做 15min 卡壳检测
+    // 每 30s 上报一次当前用时,供 background 做 15min 卡壳检测 + popup 实时显示
     const elapsed = effectiveElapsedSec();
-    LCC.bg("TIMER_TICK", { elapsedSec: elapsed });
+    LCC.bg("TIMER_TICK", { elapsedSec: elapsed, problemKey: LCC.state.currentProblemKey });
   }
 
   function effectiveElapsedSec() {
@@ -60,7 +60,7 @@
           LCC.utils.log("info", "timer", "started at", LCC.state.sessionStartedAt);
         } else if (msg.type === "TIMER_STOP") {
           const elapsed = effectiveElapsedSec();
-          LCC.bg("TIMER_FINAL", { elapsedSec: elapsed });
+          LCC.bg("TIMER_FINAL", { elapsedSec: elapsed, problemKey: LCC.state.currentProblemKey });
           if (tickTimer) {
             clearInterval(tickTimer);
             tickTimer = null;
