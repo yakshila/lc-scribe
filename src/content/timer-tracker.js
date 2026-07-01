@@ -117,8 +117,18 @@
       // —— 页面可见性:浏览器级 tab 切换 / 最小化,唯一可信的"切走"信号 ——
       // 不监听 blur/focus:LeetCode 内部弹窗/编辑器会误触发 blur,导致做题中误暂停。
       document.addEventListener("visibilitychange", () => {
-        if (document.hidden) pause();
-        else resume();
+        if (document.hidden) {
+          pause();
+        } else {
+          resume();
+          // 兜底:切走期间 timer 可能被 STOP(AC / SPA 换题 STOP 旧题后新题 START 竞态丢失 / 消息乱序),
+          // 此时 state=IDLE,resume() 不会重启。若仍在题目页,重新 startTracking,确保切回必定计时。
+          // AC 后继续计时只更新 session.elapsedSec,不影响已固定的 durationSec,无副作用。
+          if (state === STATE.IDLE && LCC.state.currentProblemKey) {
+            LCC.utils.log("info", "timer", `visible from IDLE, restart ${LCC.state.currentProblemKey}`);
+            startTracking(LCC.state.currentProblemKey);
+          }
+        }
       });
 
       // —— 卸载兜底:页面关闭前 flush,避免最后一次时长丢失 ——
