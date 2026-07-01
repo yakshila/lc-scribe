@@ -4,7 +4,7 @@ import { parseProblemSlug, formatDuration, extractJSON, truncate } from "../src/
 import { newNoteSkeleton, deepMerge } from "../src/storage/store.js";
 import { noteToMarkdown, validateNote, REVIEW_GRADES } from "../src/storage/schema.js";
 import { sm2Init, sm2Next, countDue } from "../src/review/sm2.js";
-import { parseNoteGenerationResult, parseCodeAnalysisResult } from "../src/llm/prompts.js";
+import { parseNoteGenerationResult, parseCodeAnalysisResult, parseExplanationResult } from "../src/llm/prompts.js";
 
 let pass = 0, fail = 0;
 function ok(name, cond, extra = "") {
@@ -87,6 +87,20 @@ ok("noteGen parsed", noteGen && noteGen.approach.intuition === "哈希" && noteG
 const codeAn = parseCodeAnalysisResult('{"keyLines":[{"line":3,"note":"建表"}],"comments":["可读性好"]}');
 ok("codeAn parsed", codeAn && codeAn.keyLines.length === 1 && codeAn.keyLines[0].line === 3);
 ok("codeAn bad returns null", parseCodeAnalysisResult("nope") === null);
+
+console.log("explanation parse:");
+const explRaw = '{"plainExplanation":"两数之和","optimalApproach":{"name":"哈希表","idea":"一次遍历","steps":["建表","查补数"],"whyOptimal":"O(n)最优","complexity":{"time":"O(n)","space":"O(n)"}},"analogy":"查字典","keyInsight":"补数","commonPitfalls":["漏判自身"],"codeTemplate":"for x in nums:"}';
+const expl = parseExplanationResult(explRaw);
+ok("expl parsed", expl && expl.explanation && expl.explanation.plainExplanation === "两数之和");
+ok("expl optimalApproach", expl && expl.explanation.optimalApproach.name === "哈希表" && expl.explanation.optimalApproach.steps.length === 2);
+ok("expl complexity", expl && expl.explanation.optimalApproach.complexity.time === "O(n)");
+ok("expl null on bad", parseExplanationResult("nope") === null);
+
+console.log("noteGen betterApproach parse:");
+const noteGenBA = parseNoteGenerationResult('{"intuition":"i","approach":"a","algorithm":"al","dataStructures":[],"complexity":{"time":"O(n^2)","space":"O(1)"},"pitfalls":[],"lessonsLearned":[],"patterns":[],"relatedProblems":[],"summary":"s","alternativeApproaches":[],"betterApproach":{"name":"哈希表","idea":"一次遍历","steps":["建表"],"whyBetter":"O(n^2)变O(n)","analogy":"字典","complexity":{"time":"O(n)","space":"O(n)"},"userComplexity":{"time":"O(n^2)","space":"O(1)"}},"commonMistakes":[],"interviewTips":"t"}');
+ok("betterApproach parsed", noteGenBA && noteGenBA.aiGenerated.betterApproach && noteGenBA.aiGenerated.betterApproach.name === "哈希表");
+ok("betterApproach whyBetter", noteGenBA && noteGenBA.aiGenerated.betterApproach.whyBetter === "O(n^2)变O(n)");
+ok("betterApproach null on absent", noteGen && noteGen.aiGenerated.betterApproach === null);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

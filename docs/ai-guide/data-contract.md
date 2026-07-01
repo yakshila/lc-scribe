@@ -70,6 +70,8 @@
 
 所有消息走 `chrome.runtime.sendMessage({ type, payload })`,由 [coordinator.js](../../src/background/coordinator.js) `handleMessage` 路由,响应统一为 `{ ok, data }` 或 `{ ok:false, error }`。
 
+**消息路由层重构**:`handleMessage` 由 `switch` 收拢为 `HANDLERS` 消息表映射(`export const HANDLERS`,每条 `{ require?, handler }`)。`require` 字段做 payload 必填校验,缺字段抛错由 service-worker 统一 catch。新增消息只需往表里加一行,不用动路由逻辑。`TIMER_TICK`/`TIMER_FINAL`/`TIMER_START`/`TIMER_STOP` 均带 `problemKey`,支持按题维度计时。
+
 **Content → Background**:
 
 | type | 方向 | 说明 |

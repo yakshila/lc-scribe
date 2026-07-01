@@ -24,6 +24,8 @@ import { buildExplanationPrompt, parseExplanationResult } from "../llm/prompts.j
 // 内存:problemKey -> { tabId, slug },用于向对应 tab 下发指令。SW 重启会丢失,可接受。
 const tabMap = new Map(); // problemKey -> tabId
 const problemKeyByTab = new Map(); // tabId -> problemKey
+// 每个 tab 当前计时的题(SPA 同 tab 换题时,先 STOP 旧题再 START 新题,避免计时数据丢失)
+const currentProblemByTab = new Map(); // tabId -> problemKey
 
 function sendToTab(tabId, msg) {
   if (tabId == null) return;
@@ -43,6 +45,17 @@ async function onProblemEntered(payload, sender) {
   if (tabId != null) {
     tabMap.set(problemKey, tabId);
     problemKeyByTab.set(tabId, problemKey);
+  }
+
+  // SPA 同 tab 换题:先 STOP 旧题(timer 会 flush 旧题 FINAL 上报),再 START 新题。
+  // 避免旧题计时数据被新题 TIMER_START 重置时丢失。
+  if (tabId != null) {
+    const prevKey = currentProblemByTab.get(tabId);
+    if (prevKey && prevKey !== problemKey) {
+      logger.info("coord", `SPA switch in tab ${tabId}: ${prevKey} -> ${problemKey}, STOP old first`);
+      sendToTab(tabId, { type: "TIMER_STOP", payload: { problemKey: prevKey } });
+    }
+    currentProblemByTab.set(tabId, problemKey);
   }
 
   let session = await getSession(problemKey);
@@ -66,7 +79,8 @@ async function onProblemEntered(payload, sender) {
   if (settings.notifications.onStuckEnabled && !session.accepted) {
     setStuckAlarm(problemKey, settings.notifications.onStuckMinutes);
   }
-  sendToProblemTab(problemKey, { type: "TIMER_START" });
+  // TIMER_START 带 problemKey,让 timer-tracker 知道计的是哪道题(支持按题维度计时)
+  sendToProblemTab(problemKey, { type: "TIMER_START", payload: { problemKey } });
   return { ok: true };
 }
 
@@ -123,7 +137,13 @@ async function onSubmissionResult(payload, sender) {
       session.durationSec = (session.elapsedSec && session.elapsedSec > 0) ? session.elapsedSec : wall;
     }
     clearStuckAlarm(problemKey);
-    sendToProblemTab(problemKey, { type: "TIMER_STOP" });
+    // AC 后停止计时,timer 会 flush FINAL 上报最终时长。带 problemKey 便于 timer 按题 flush。
+    sendToProblemTab(problemKey, { type: "TIMER_STOP", payload: { problemKey } });
+    // 清理 currentProblemByTab:该 tab 已无计时中的题
+    const tabId = sender && sender.tab && sender.tab.id;
+    if (tabId != null && currentProblemByTab.get(tabId) === problemKey) {
+      currentProblemByTab.delete(tabId);
+    }
   }
   await saveSession(problemKey, session);
   logger.info("coord", `${isRun ? "run" : "submission"}: ${slug} -> ${status}${becameAccepted ? " (NEW AC)" : ""} | attempts=${session.attempts.length}`);
@@ -564,19 +584,19 @@ async function sendToastToActiveTab(payload) {
 }
 
 // ============ 消息路由 ============
+// 重构:switch 收拢为消息表映射,每个 handler 是 (payload, sender) => Promise<result>。
+// require 字段做 payload 校验,缺字段直接抛错(由 service-worker 统一 catch 返回 {ok:false,error})。
+// 新增消息只需往 HANDLERS 表加一行,不用动路由逻辑,便于后续迭代与测试。
 
-export async function handleMessage(msg, sender) {
-  if (!msg || !msg.type) return null;
-  const { type, payload } = msg;
-  logger.debug("coord", `msg: ${type}`);
+export const HANDLERS = {
+  // —— content script 上报 ——
+  PROBLEM_ENTERED: { handler: (p, s) => onProblemEntered(p, s) },
+  PROBLEM_META: { handler: (p) => onProblemMeta(p) },
+  SUBMISSION_RESULT: { handler: (p, s) => onSubmissionResult(p, s) },
 
-  switch (type) {
-    case "PROBLEM_ENTERED": return await onProblemEntered(payload || {}, sender);
-    case "PROBLEM_META": return await onProblemMeta(payload || {});
-    case "SUBMISSION_RESULT": return await onSubmissionResult(payload || {}, sender);
-    case "TOAST_BUTTON": {
-      // toast 按钮点击回调(系统通知失败时的兜底交互 + 进度 toast 的「查看笔记」按钮)
-      const { action, problemKey, noteId } = payload || {};
+  TOAST_BUTTON: {
+    handler: async (p) => {
+      const { action, problemKey, noteId } = p || {};
       logger.info("coord", `toast button: ${action} for ${problemKey || noteId}`);
       if (action === "generate-note" && problemKey) {
         runNoteGenerationWithProgress(problemKey).catch((e) => logger.error("coord", "gen-note from toast", e));
@@ -584,79 +604,116 @@ export async function handleMessage(msg, sender) {
         chrome.tabs.create({ url: chrome.runtime.getURL(`src/notes/note-viewer.html?id=${noteId}`) });
       }
       return { ok: true };
-    }
-    case "TIMER_TICK": {
-      // 更新 session elapsed(供 popup 实时显示)
-      if (payload && payload.problemKey) {
-        const s = await getSession(payload.problemKey);
-        if (s && !s.accepted) {
-          s.elapsedSec = payload.elapsedSec;
-          await saveSession(payload.problemKey, s);
-        }
+    },
+  },
+
+  // —— 计时器上报 ——
+  TIMER_TICK: {
+    require: ["problemKey"],
+    handler: async (p) => {
+      const s = await getSession(p.problemKey);
+      if (s && !s.accepted) {
+        s.elapsedSec = p.elapsedSec;
+        await saveSession(p.problemKey, s);
       }
       return { ok: true };
-    }
-    case "TIMER_FINAL": {
-      if (payload && payload.problemKey) {
-        const s = await getSession(payload.problemKey);
-        if (s) { s.elapsedSec = payload.elapsedSec; await saveSession(payload.problemKey, s); }
-      }
+    },
+  },
+  TIMER_FINAL: {
+    require: ["problemKey"],
+    handler: async (p) => {
+      const s = await getSession(p.problemKey);
+      if (s) { s.elapsedSec = p.elapsedSec; await saveSession(p.problemKey, s); }
       return { ok: true };
-    }
-    // —— UI 请求 ——
-    case "GET_STATUS": return await getStatus();
-    case "GET_NOTES": return await listNotes();
-    case "GET_NOTE": return await getNote(payload.noteId);
-    case "GET_DUE_REVIEWS": return await getDueReviews();
-    case "GET_SETTINGS": return await getSettings();
-    case "SAVE_SETTINGS": {
-      const next = await saveSettings(payload || {});
+    },
+  },
+
+  // —— UI 请求 ——
+  GET_STATUS: { handler: () => getStatus() },
+  GET_NOTES: { handler: () => listNotes() },
+  GET_NOTE: { require: ["noteId"], handler: (p) => getNote(p.noteId) },
+  GET_DUE_REVIEWS: { handler: () => getDueReviews() },
+  GET_SETTINGS: { handler: () => getSettings() },
+  SAVE_SETTINGS: {
+    handler: async (p) => {
+      const next = await saveSettings(p || {});
       ensureDailyReviewAlarm(next.notifications.reviewCheckHour);
       return next;
-    }
-    case "GET_STATS": return await getStats();
-    case "CLEAR_STATS": return await clearStats();
-    case "GENERATE_NOTE": return await generateNoteFor(payload.problemKey);
-    case "GENERATE_EXPLANATION": return await generateExplanationFor(payload.noteId);
-    case "REVIEW_GRADE": return await reviewNote(payload.noteId, payload.grade);
-    case "SET_CUSTOM_REVIEW": return await setCustomReview(payload.noteId, payload.days);
-    case "DELETE_NOTE": await deleteNote(payload.noteId); return { ok: true };
-    case "DELETE_NOTES": {
-      // 批量删除笔记(含对应 review)。payload.noteIds: string[]
-      const removed = await deleteNotes(payload.noteIds || []);
+    },
+  },
+  GET_STATS: { handler: () => getStats() },
+  CLEAR_STATS: { handler: () => clearStats() },
+
+  // —— 笔记 / 复习 ——
+  GENERATE_NOTE: { require: ["problemKey"], handler: (p) => generateNoteFor(p.problemKey) },
+  GENERATE_EXPLANATION: { require: ["noteId"], handler: (p) => generateExplanationFor(p.noteId) },
+  REVIEW_GRADE: { require: ["noteId", "grade"], handler: (p) => reviewNote(p.noteId, p.grade) },
+  SET_CUSTOM_REVIEW: { require: ["noteId", "days"], handler: (p) => setCustomReview(p.noteId, p.days) },
+  DELETE_NOTE: { require: ["noteId"], handler: async (p) => { await deleteNote(p.noteId); return { ok: true }; } },
+  DELETE_NOTES: {
+    handler: async (p) => {
+      const removed = await deleteNotes(p.noteIds || []);
       return { removed, count: removed.length };
-    }
-    case "UPLOAD_NOTE": {
-      const note = await getNote(payload.noteId);
+    },
+  },
+
+  // —— 上传 ——
+  UPLOAD_NOTE: {
+    require: ["noteId", "uploader"],
+    handler: async (p) => {
+      const note = await getNote(p.noteId);
       if (!note) return { ok: false, error: "note not found" };
       const reg = getUploaderRegistry();
-      return await reg.upload(payload.uploader, note, { settings: await getSettings() });
-    }
-    case "BATCH_UPLOAD": {
-      // 批量上传。payload: { noteIds: string[], uploader: string }
-      const ids = payload.noteIds || [];
-      const uploader = payload.uploader;
+      return await reg.upload(p.uploader, note, { settings: await getSettings() });
+    },
+  },
+  BATCH_UPLOAD: {
+    handler: async (p) => {
+      const ids = p.noteIds || [];
       const reg = getUploaderRegistry();
       const settings = await getSettings();
       const results = [];
       for (const id of ids) {
         const note = await getNote(id);
         if (!note) { results.push({ id, success: false, message: "note not found" }); continue; }
-        const r = await reg.upload(uploader, note, { settings });
+        const r = await reg.upload(p.uploader, note, { settings });
         results.push({ id, ...r });
       }
-      const ok = results.filter((r) => r.success).length;
-      return { results, total: ids.length, success: ok, failed: ids.length - ok };
-    }
-    case "GET_NOTE_MARKDOWN": {
-      const note = await getNote(payload.noteId);
+      const okCount = results.filter((r) => r.success).length;
+      return { results, total: ids.length, success: okCount, failed: ids.length - okCount };
+    },
+  },
+  GET_NOTE_MARKDOWN: {
+    require: ["noteId"],
+    handler: async (p) => {
+      const note = await getNote(p.noteId);
       return { markdown: note ? noteToMarkdown(note) : "" };
-    }
-    case "TRIGGER_REVIEW_CHECK": await runDailyReviewCheck(); return { ok: true };
-    default:
-      logger.warn("coord", `unknown message type: ${type}`);
-      return null;
+    },
+  },
+
+  // —— 复习检查 ——
+  TRIGGER_REVIEW_CHECK: { handler: async () => { await runDailyReviewCheck(); return { ok: true }; } },
+};
+
+export async function handleMessage(msg, sender) {
+  if (!msg || !msg.type) return null;
+  const { type, payload } = msg;
+  logger.debug("coord", `msg: ${type}`);
+
+  const entry = HANDLERS[type];
+  if (!entry) {
+    logger.warn("coord", `unknown message type: ${type}`);
+    return null;
   }
+  // payload 必填字段校验
+  if (entry.require && Array.isArray(entry.require)) {
+    const p = payload || {};
+    const missing = entry.require.filter((k) => p[k] == null);
+    if (missing.length) {
+      throw new Error(`missing required field(s) for ${type}: ${missing.join(", ")}`);
+    }
+  }
+  return await entry.handler(payload || {}, sender);
 }
 
 async function getStatus() {
@@ -711,6 +768,7 @@ export async function initCoordinator() {
       problemKeyByTab.delete(tabId);
       tabMap.delete(pk);
     }
+    currentProblemByTab.delete(tabId);
   });
 
   logger.info("coord", "coordinator initialized");
